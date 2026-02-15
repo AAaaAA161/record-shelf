@@ -236,6 +236,30 @@
             transform: translateY(-2px);
         }
 
+        .export-btn, .import-btn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 12px 24px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .export-btn:hover {
+            background: rgba(107, 207, 143, 0.1);
+            border-color: rgba(107, 207, 143, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .import-btn:hover {
+            background: rgba(100, 150, 255, 0.1);
+            border-color: rgba(100, 150, 255, 0.5);
+            transform: translateY(-2px);
+        }
+
         /* Main Category Sections */
         .main-category-section {
             margin-bottom: 40px;
@@ -853,71 +877,58 @@
                 return originalGenre.charAt(0).toUpperCase() + originalGenre.slice(1);
             }
 
-            async init() {
-                // Try to load albums from Netlify Blob Storage
-                this.showLoading('Lade gespeicherte Alben...');
+            init() {
+                // Check if we have saved albums
+                const savedAlbums = this.loadFromStorage();
                 
-                try {
-                    const response = await fetch('/.netlify/functions/load-albums');
-                    const data = await response.json();
+                if (savedAlbums && savedAlbums.length > 0) {
+                    console.log(`${savedAlbums.length} gespeicherte Alben gefunden`);
+                    this.albums = savedAlbums;
                     
-                    if (data.albums && data.albums.length > 0) {
-                        console.log(`${data.albums.length} Alben aus Blob Storage geladen`);
-                        this.albums = data.albums;
-                        
-                        // Re-map genres in case the mapping has changed
-                        this.albums.forEach(album => {
-                            if (album.genre) {
-                                const oldGenre = album.genre;
-                                album.genre = this.mapGenre(oldGenre);
-                                if (oldGenre !== album.genre) {
-                                    console.log(`Genre aktualisiert für ${album.album}: ${oldGenre} → ${album.genre}`);
-                                }
+                    // Re-map genres in case the mapping has changed
+                    this.albums.forEach(album => {
+                        if (album.genre) {
+                            const oldGenre = album.genre;
+                            album.genre = this.mapGenre(oldGenre);
+                            if (oldGenre !== album.genre) {
+                                console.log(`Genre aktualisiert für ${album.album}: ${oldGenre} → ${album.genre}`);
                             }
-                        });
-                        
-                        this.renderAlbumsByGenre();
-                    } else {
-                        console.log('Keine gespeicherten Alben gefunden');
-                        this.showUploadScreen();
-                    }
-                } catch (error) {
-                    console.error('Fehler beim Laden aus Blob Storage:', error);
+                        }
+                    });
+                    
+                    // Save updated genres
+                    this.saveToStorage();
+                    
+                    this.renderAlbumsByGenre();
+                } else {
                     this.showUploadScreen();
                 }
             }
 
-            async saveToBlob() {
+            loadFromStorage() {
                 try {
-                    this.showLoading('Speichere Alben...');
-                    
-                    const response = await fetch('/.netlify/functions/save-albums', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            albums: this.albums
-                        })
-                    });
-
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        console.log(`${data.count} Alben in Blob Storage gespeichert`);
-                    } else {
-                        console.error('Fehler beim Speichern:', data.error);
+                    const stored = localStorage.getItem('albumLibrary');
+                    if (stored) {
+                        return JSON.parse(stored);
                     }
                 } catch (error) {
-                    console.error('Fehler beim Speichern in Blob Storage:', error);
+                    console.error('Fehler beim Laden aus localStorage:', error);
+                }
+                return null;
+            }
+
+            saveToStorage() {
+                try {
+                    localStorage.setItem('albumLibrary', JSON.stringify(this.albums));
+                    console.log('Alben im localStorage gespeichert');
+                } catch (error) {
+                    console.error('Fehler beim Speichern in localStorage:', error);
                 }
             }
 
-            async clearBlob() {
-                // For "Neue CSV laden" - we just set empty albums array
-                this.albums = [];
-                await this.saveToBlob();
-                console.log('Blob Storage geleert');
+            clearStorage() {
+                localStorage.removeItem('albumLibrary');
+                console.log('localStorage gelöscht');
             }
 
             showUploadScreen() {
@@ -1093,8 +1104,11 @@ Abbey Road,The Beatles,77640617</code>
 
                     console.log('Alle Daten geladen, rendere jetzt...');
                     
-                    // Save to Netlify Blob Storage
-                    await this.saveToBlob();
+                    // Save to localStorage
+                    this.saveToStorage();
+                    
+                    // Auto-create backup after successful import
+                    this.autoExportBackup();
                     
                     // Now render grouped by genre
                     this.renderAlbumsByGenre();
@@ -1102,6 +1116,79 @@ Abbey Road,The Beatles,77640617</code>
                     console.error('Fehler beim Laden der Daten:', error);
                     this.showError('Fehler beim Laden der Daten: ' + error.message);
                 }
+            }
+
+            autoExportBackup() {
+                try {
+                    // Create backup object
+                    const backup = {
+                        version: '1.3',
+                        exportDate: new Date().toISOString(),
+                        albumCount: this.albums.length,
+                        albums: this.albums
+                    };
+
+                    // Convert to JSON
+                    const jsonString = JSON.stringify(backup, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    
+                    // Create download link
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Filename with timestamp
+                    const date = new Date().toISOString().split('T')[0];
+                    a.download = `record-shelf-backup-${date}.json`;
+                    
+                    // Trigger download
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    // Save backup date
+                    localStorage.setItem('lastBackupDate', new Date().toISOString());
+
+                    console.log('✅ Automatisches Backup erstellt');
+                    
+                } catch (error) {
+                    console.error('Fehler beim automatischen Backup:', error);
+                }
+            }
+
+            getLastBackupInfo() {
+                const lastBackup = localStorage.getItem('lastBackupDate');
+                if (!lastBackup) {
+                    return `<div style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.5); font-size: 0.85rem;">
+                        💡 Tipp: Erstelle regelmäßig Backups
+                    </div>`;
+                }
+
+                const date = new Date(lastBackup);
+                const now = new Date();
+                const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+                
+                let timeText;
+                if (diffDays === 0) {
+                    timeText = 'heute';
+                } else if (diffDays === 1) {
+                    timeText = 'gestern';
+                } else if (diffDays < 7) {
+                    timeText = `vor ${diffDays} Tagen`;
+                } else if (diffDays < 30) {
+                    const weeks = Math.floor(diffDays / 7);
+                    timeText = `vor ${weeks} Woche${weeks > 1 ? 'n' : ''}`;
+                } else {
+                    const months = Math.floor(diffDays / 30);
+                    timeText = `vor ${months} Monat${months > 1 ? 'en' : ''}`;
+                }
+
+                const emoji = diffDays > 30 ? '⚠️' : '✅';
+                
+                return `<div style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.6); font-size: 0.85rem;">
+                    ${emoji} Letztes Backup: ${timeText}
+                </div>`;
             }
 
             async fetchAlbumCover(albumName, artistName) {
@@ -1265,9 +1352,13 @@ Abbey Road,The Beatles,77640617</code>
                 }
 
                 let html = `
-                    <div style="text-align: center; margin-bottom: 30px;">
+                    <div style="text-align: center; margin-bottom: 30px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                         <button class="reset-btn" onclick="app.loadNewCSV()">← Neue CSV laden</button>
+                        <button class="export-btn" onclick="app.exportBackup()" title="Alben als JSON downloaden">💾 Backup erstellen</button>
+                        <button class="import-btn" onclick="document.getElementById('import-file').click()" title="Backup-Datei laden">📂 Backup laden</button>
+                        <input type="file" id="import-file" accept=".json" style="display: none;" onchange="app.importBackup(event)">
                     </div>
+                    ${this.getLastBackupInfo()}
                     <div class="stats">
                         <div class="stat-item">
                             <span class="stat-number">${this.albums.length}</span>
@@ -1467,12 +1558,108 @@ Abbey Road,The Beatles,77640617</code>
                 this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
             }
 
-            async loadNewCSV() {
+            loadNewCSV() {
                 if (confirm('Möchtest du wirklich eine neue CSV laden? Die aktuellen Daten werden überschrieben.')) {
-                    await this.clearBlob();
+                    this.clearStorage();
                     this.albums = [];
                     this.showUploadScreen();
                 }
+            }
+
+            exportBackup() {
+                try {
+                    // Create backup object
+                    const backup = {
+                        version: '1.3',
+                        exportDate: new Date().toISOString(),
+                        albumCount: this.albums.length,
+                        albums: this.albums
+                    };
+
+                    // Convert to JSON
+                    const jsonString = JSON.stringify(backup, null, 2);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    
+                    // Create download link
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Filename with timestamp
+                    const date = new Date().toISOString().split('T')[0];
+                    a.download = `record-shelf-backup-${date}.json`;
+                    
+                    // Trigger download
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    // Save backup date to localStorage
+                    localStorage.setItem('lastBackupDate', new Date().toISOString());
+
+                    console.log('✅ Backup erstellt:', this.albums.length, 'Alben');
+                    
+                    // Show success message briefly
+                    const originalText = event.target.textContent;
+                    event.target.textContent = '✅ Gespeichert!';
+                    setTimeout(() => {
+                        event.target.textContent = originalText;
+                    }, 2000);
+                    
+                } catch (error) {
+                    console.error('Fehler beim Exportieren:', error);
+                    alert('Fehler beim Erstellen des Backups: ' + error.message);
+                }
+            }
+
+            importBackup(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    try {
+                        const backup = JSON.parse(e.target.result);
+                        
+                        // Validate backup structure
+                        if (!backup.albums || !Array.isArray(backup.albums)) {
+                            throw new Error('Ungültiges Backup-Format');
+                        }
+
+                        // Confirm restore
+                        const message = `Backup vom ${new Date(backup.exportDate).toLocaleDateString()}\n` +
+                                      `${backup.albumCount} Alben\n\n` +
+                                      `Aktuelle Daten überschreiben?`;
+                        
+                        if (!confirm(message)) {
+                            event.target.value = ''; // Reset file input
+                            return;
+                        }
+
+                        // Restore albums
+                        this.albums = backup.albums;
+                        
+                        // Save to localStorage
+                        this.saveToStorage();
+                        
+                        // Re-render
+                        this.renderAlbumsByGenre();
+                        
+                        console.log('✅ Backup geladen:', this.albums.length, 'Alben');
+                        
+                        // Reset file input
+                        event.target.value = '';
+                        
+                    } catch (error) {
+                        console.error('Fehler beim Importieren:', error);
+                        alert('Fehler beim Laden des Backups: ' + error.message);
+                        event.target.value = '';
+                    }
+                };
+                
+                reader.readAsText(file);
             }
 
             openInTidal(deepLink, webLink, hasTidalId, tidalId) {
