@@ -8,16 +8,11 @@
   # Environment variables will be set in Netlify UI
 
 # Redirect all requests to index.html for SPA behavior
+# Netlify Functions are automatically excluded from this redirect
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  force = false
-  
-  # Except for Netlify Functions
-  conditions = {Role = [""]
-
-, "!Function"]}
 
 # Headers for PWA and security
 [[headers]]
