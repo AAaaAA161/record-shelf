@@ -24,12 +24,29 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Get Netlify Blob store with explicit context
-    // WICHTIG: siteID und token aus context übergeben!
+    // Get credentials from environment variables
+    const siteID = process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_FUNCTIONS_TOKEN;
+    
+    if (!siteID || !token) {
+      console.error('[Load Albums] Missing credentials:', {
+        hasSiteID: !!siteID,
+        hasToken: !!token
+      });
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Blobs credentials not configured' })
+      };
+    }
+
+    console.log('[Load Albums] Creating store with credentials...');
+    
+    // Create store with explicit credentials from env
     const store = getStore({
       name: 'album-data',
-      siteID: context.site?.id,
-      token: context.token
+      siteID: siteID,
+      token: token
     });
     
     console.log('[Load Albums] Loading from blob storage...');
@@ -38,7 +55,6 @@ exports.handler = async (event, context) => {
     const data = await store.get('albums.json', { type: 'json' });
 
     if (!data) {
-      // No data saved yet
       console.log('[Load Albums] ℹ️  No data found in blob storage');
       return {
         statusCode: 200,

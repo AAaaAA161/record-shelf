@@ -1,4 +1,4 @@
-// Netlify Function - Save Albums (DEBUG VERSION)
+// Netlify Function - Save Albums to Blob Storage
 const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event, context) => {
@@ -24,14 +24,6 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // DEBUG: Log everything about context
-    console.log('[DEBUG] === CONTEXT DEBUG ===');
-    console.log('[DEBUG] context keys:', Object.keys(context || {}));
-    console.log('[DEBUG] context.site:', context.site);
-    console.log('[DEBUG] context.token:', context.token ? 'EXISTS' : 'MISSING');
-    console.log('[DEBUG] process.env.NETLIFY_BLOBS_CONTEXT:', process.env.NETLIFY_BLOBS_CONTEXT);
-    console.log('[DEBUG] process.env keys:', Object.keys(process.env).filter(k => k.includes('NETLIFY')));
-    
     const { albums } = JSON.parse(event.body);
     
     if (!albums || !Array.isArray(albums)) {
@@ -42,12 +34,32 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('[Save Albums] Attempting to create store...');
+    // Get credentials from environment variables
+    const siteID = process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_FUNCTIONS_TOKEN;
     
-    // Try without any parameters first - should auto-detect
-    const store = getStore('album-data');
+    if (!siteID || !token) {
+      console.error('[Save Albums] Missing credentials:', {
+        hasSiteID: !!siteID,
+        hasToken: !!token
+      });
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Blobs credentials not configured' })
+      };
+    }
+
+    console.log('[Save Albums] Creating store with credentials...');
     
-    console.log('[Save Albums] Store created, saving', albums.length, 'albums...');
+    // Create store with explicit credentials from env
+    const store = getStore({
+      name: 'album-data',
+      siteID: siteID,
+      token: token
+    });
+    
+    console.log('[Save Albums] Saving', albums.length, 'albums...');
     
     // Save albums as JSON
     await store.setJSON('albums.json', {
@@ -56,7 +68,7 @@ exports.handler = async (event, context) => {
       count: albums.length
     });
 
-    console.log('[Save Albums] ✅ SUCCESS! Saved', albums.length, 'albums');
+    console.log('[Save Albums] ✅ Saved', albums.length, 'albums to blob storage');
 
     return {
       statusCode: 200,
@@ -70,7 +82,6 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('[Save Albums] ❌ Error:', error.message);
-    console.error('[Save Albums] Error name:', error.name);
     console.error('[Save Albums] Stack:', error.stack);
     
     return {
@@ -78,8 +89,7 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         error: 'Failed to save albums',
-        message: error.message,
-        errorName: error.name
+        message: error.message
       })
     };
   }
