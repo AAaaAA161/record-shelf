@@ -4,7 +4,7 @@
   "description": "Progressive Web App for music collection with Tidal integration",
   "private": true,
   "dependencies": {
-    "@netlify/blobs": "^7.0.0"
+    "@netlify/blobs": "^7.4.0"
   },
   "scripts": {
     "dev": "netlify dev"

@@ -16,6 +16,7 @@ exports.handler = async (event, context) => {
 
   // Only allow POST
   if (event.httpMethod !== 'POST') {
+    console.log('[Save Albums] Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
       headers,
@@ -34,18 +35,24 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Get Netlify Blob store
-    const store = getStore('album-data');
+    // Get Netlify Blob store with explicit context
+    // WICHTIG: siteID und token aus context übergeben!
+    const store = getStore({
+      name: 'album-data',
+      siteID: context.site?.id,
+      token: context.token
+    });
+    
+    console.log('[Save Albums] Saving', albums.length, 'albums...');
     
     // Save albums as JSON
-    // Single user, so we use a fixed key
     await store.setJSON('albums.json', {
       albums: albums,
       savedAt: new Date().toISOString(),
       count: albums.length
     });
 
-    console.log('[Save Albums] Saved', albums.length, 'albums to blob storage');
+    console.log('[Save Albums] ✅ Saved', albums.length, 'albums to blob storage');
 
     return {
       statusCode: 200,
@@ -58,7 +65,8 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('[Save Albums] Error:', error.message);
+    console.error('[Save Albums] ❌ Error:', error.message);
+    console.error('[Save Albums] Stack:', error.stack);
     
     return {
       statusCode: 500,

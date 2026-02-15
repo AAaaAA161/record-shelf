@@ -24,15 +24,22 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    // Get Netlify Blob store
-    const store = getStore('album-data');
+    // Get Netlify Blob store with explicit context
+    // WICHTIG: siteID und token aus context übergeben!
+    const store = getStore({
+      name: 'album-data',
+      siteID: context.site?.id,
+      token: context.token
+    });
+    
+    console.log('[Load Albums] Loading from blob storage...');
     
     // Load albums from blob
     const data = await store.get('albums.json', { type: 'json' });
 
     if (!data) {
       // No data saved yet
-      console.log('[Load Albums] No data found in blob storage');
+      console.log('[Load Albums] ℹ️  No data found in blob storage');
       return {
         statusCode: 200,
         headers,
@@ -43,7 +50,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    console.log('[Load Albums] Loaded', data.albums?.length || 0, 'albums from blob storage');
+    console.log('[Load Albums] ✅ Loaded', data.albums?.length || 0, 'albums from blob storage');
 
     return {
       statusCode: 200,
@@ -56,7 +63,8 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('[Load Albums] Error:', error.message);
+    console.error('[Load Albums] ❌ Error:', error.message);
+    console.error('[Load Albums] Stack:', error.stack);
     
     return {
       statusCode: 500,
