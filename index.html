@@ -221,10 +221,10 @@
             background: var(--bg-secondary);
             color: var(--text-primary);
             border: 1px solid var(--border);
-            padding: 12px 24px;
-            font-size: 0.95rem;
+            padding: 14px 32px;
+            font-size: 1rem;
             font-weight: 600;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
             margin-bottom: 30px;
@@ -240,10 +240,10 @@
             background: var(--bg-secondary);
             color: var(--text-primary);
             border: 1px solid var(--border);
-            padding: 12px 24px;
-            font-size: 0.95rem;
+            padding: 14px 32px;
+            font-size: 1rem;
             font-weight: 600;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
         }
@@ -602,8 +602,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>Album Library</h1>
-            <p class="subtitle">Deine Musiksammlung</p>
+            <h1>Record Shelf</h1>
+            <p class="subtitle">Meine Musiksammlung mit intelligenter Genre-Organisation</p>
         </header>
 
         <div id="app"></div>
@@ -945,6 +945,16 @@
                                 Datei auswählen
                             </button>
                             <input type="file" id="fileInput" class="file-input" accept=".csv" />
+                        </div>
+
+                        <div style="text-align: center; margin-top: 30px;">
+                            <p style="color: rgba(255,255,255,0.6); margin-bottom: 15px;">
+                                Oder lade ein bestehendes Backup:
+                            </p>
+                            <button class="import-btn" onclick="document.getElementById('import-file-upload').click()" title="Backup-Datei laden">
+                                📂 Backup laden
+                            </button>
+                            <input type="file" id="import-file-upload" accept=".json" style="display: none;" onchange="app.importBackup(event)">
                         </div>
 
                         <div class="csv-example">
