@@ -1,4 +1,4 @@
-// Netlify Function - Save Albums to Blob Storage
+// Netlify Function - Save Albums (DEBUG VERSION)
 const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event, context) => {
@@ -16,7 +16,6 @@ exports.handler = async (event, context) => {
 
   // Only allow POST
   if (event.httpMethod !== 'POST') {
-    console.log('[Save Albums] Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
       headers,
@@ -25,6 +24,14 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    // DEBUG: Log everything about context
+    console.log('[DEBUG] === CONTEXT DEBUG ===');
+    console.log('[DEBUG] context keys:', Object.keys(context || {}));
+    console.log('[DEBUG] context.site:', context.site);
+    console.log('[DEBUG] context.token:', context.token ? 'EXISTS' : 'MISSING');
+    console.log('[DEBUG] process.env.NETLIFY_BLOBS_CONTEXT:', process.env.NETLIFY_BLOBS_CONTEXT);
+    console.log('[DEBUG] process.env keys:', Object.keys(process.env).filter(k => k.includes('NETLIFY')));
+    
     const { albums } = JSON.parse(event.body);
     
     if (!albums || !Array.isArray(albums)) {
@@ -35,15 +42,12 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Get Netlify Blob store with explicit context
-    // WICHTIG: siteID und token aus context übergeben!
-    const store = getStore({
-      name: 'album-data',
-      siteID: context.site?.id,
-      token: context.token
-    });
+    console.log('[Save Albums] Attempting to create store...');
     
-    console.log('[Save Albums] Saving', albums.length, 'albums...');
+    // Try without any parameters first - should auto-detect
+    const store = getStore('album-data');
+    
+    console.log('[Save Albums] Store created, saving', albums.length, 'albums...');
     
     // Save albums as JSON
     await store.setJSON('albums.json', {
@@ -52,7 +56,7 @@ exports.handler = async (event, context) => {
       count: albums.length
     });
 
-    console.log('[Save Albums] ✅ Saved', albums.length, 'albums to blob storage');
+    console.log('[Save Albums] ✅ SUCCESS! Saved', albums.length, 'albums');
 
     return {
       statusCode: 200,
@@ -66,6 +70,7 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('[Save Albums] ❌ Error:', error.message);
+    console.error('[Save Albums] Error name:', error.name);
     console.error('[Save Albums] Stack:', error.stack);
     
     return {
@@ -73,7 +78,8 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         error: 'Failed to save albums',
-        message: error.message
+        message: error.message,
+        errorName: error.name
       })
     };
   }
