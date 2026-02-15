@@ -853,58 +853,71 @@
                 return originalGenre.charAt(0).toUpperCase() + originalGenre.slice(1);
             }
 
-            init() {
-                // Check if we have saved albums
-                const savedAlbums = this.loadFromStorage();
+            async init() {
+                // Try to load albums from Netlify Blob Storage
+                this.showLoading('Lade gespeicherte Alben...');
                 
-                if (savedAlbums && savedAlbums.length > 0) {
-                    console.log(`${savedAlbums.length} gespeicherte Alben gefunden`);
-                    this.albums = savedAlbums;
+                try {
+                    const response = await fetch('/.netlify/functions/load-albums');
+                    const data = await response.json();
                     
-                    // Re-map genres in case the mapping has changed
-                    this.albums.forEach(album => {
-                        if (album.genre) {
-                            const oldGenre = album.genre;
-                            album.genre = this.mapGenre(oldGenre);
-                            if (oldGenre !== album.genre) {
-                                console.log(`Genre aktualisiert für ${album.album}: ${oldGenre} → ${album.genre}`);
+                    if (data.albums && data.albums.length > 0) {
+                        console.log(`${data.albums.length} Alben aus Blob Storage geladen`);
+                        this.albums = data.albums;
+                        
+                        // Re-map genres in case the mapping has changed
+                        this.albums.forEach(album => {
+                            if (album.genre) {
+                                const oldGenre = album.genre;
+                                album.genre = this.mapGenre(oldGenre);
+                                if (oldGenre !== album.genre) {
+                                    console.log(`Genre aktualisiert für ${album.album}: ${oldGenre} → ${album.genre}`);
+                                }
                             }
-                        }
-                    });
-                    
-                    // Save updated genres
-                    this.saveToStorage();
-                    
-                    this.renderAlbumsByGenre();
-                } else {
+                        });
+                        
+                        this.renderAlbumsByGenre();
+                    } else {
+                        console.log('Keine gespeicherten Alben gefunden');
+                        this.showUploadScreen();
+                    }
+                } catch (error) {
+                    console.error('Fehler beim Laden aus Blob Storage:', error);
                     this.showUploadScreen();
                 }
             }
 
-            loadFromStorage() {
+            async saveToBlob() {
                 try {
-                    const stored = localStorage.getItem('albumLibrary');
-                    if (stored) {
-                        return JSON.parse(stored);
+                    this.showLoading('Speichere Alben...');
+                    
+                    const response = await fetch('/.netlify/functions/save-albums', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            albums: this.albums
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        console.log(`${data.count} Alben in Blob Storage gespeichert`);
+                    } else {
+                        console.error('Fehler beim Speichern:', data.error);
                     }
                 } catch (error) {
-                    console.error('Fehler beim Laden aus localStorage:', error);
-                }
-                return null;
-            }
-
-            saveToStorage() {
-                try {
-                    localStorage.setItem('albumLibrary', JSON.stringify(this.albums));
-                    console.log('Alben im localStorage gespeichert');
-                } catch (error) {
-                    console.error('Fehler beim Speichern in localStorage:', error);
+                    console.error('Fehler beim Speichern in Blob Storage:', error);
                 }
             }
 
-            clearStorage() {
-                localStorage.removeItem('albumLibrary');
-                console.log('localStorage gelöscht');
+            async clearBlob() {
+                // For "Neue CSV laden" - we just set empty albums array
+                this.albums = [];
+                await this.saveToBlob();
+                console.log('Blob Storage geleert');
             }
 
             showUploadScreen() {
@@ -1080,8 +1093,8 @@ Abbey Road,The Beatles,77640617</code>
 
                     console.log('Alle Daten geladen, rendere jetzt...');
                     
-                    // Save to localStorage
-                    this.saveToStorage();
+                    // Save to Netlify Blob Storage
+                    await this.saveToBlob();
                     
                     // Now render grouped by genre
                     this.renderAlbumsByGenre();
@@ -1454,9 +1467,9 @@ Abbey Road,The Beatles,77640617</code>
                 this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
             }
 
-            loadNewCSV() {
+            async loadNewCSV() {
                 if (confirm('Möchtest du wirklich eine neue CSV laden? Die aktuellen Daten werden überschrieben.')) {
-                    this.clearStorage();
+                    await this.clearBlob();
                     this.albums = [];
                     this.showUploadScreen();
                 }
@@ -1596,7 +1609,7 @@ Abbey Road,The Beatles,77640617</code>
                             'japanese', 'korean', 'swedish', 'norwegian', 'finnish', 'danish', 'kenya',
                             'italian', 'spanish', 'dutch', 'belgian', 'austrian', 'swiss',
                             'irish', 'scottish', 'welsh', 'icelandic', 'portuguese', 'austria', 'bayrisch', 'pakistan', 'peru',
-                            'swedish', 'usa', 'ukrainian', 'ukranian', 'united states', 'usa', 'montreal'
+                            'swedish', 'usa', 'ukrainian', 'ukranian',
                             // Cities/Places
                             'london', 'berlin', 'paris', 'new york', 'los angeles', 'tokyo',
                             'nyc', 'la', 'uk', 'usa', 'europe',
@@ -1612,7 +1625,7 @@ Abbey Road,The Beatles,77640617</code>
                             'melancholic', 'melancholy', 'chill', 'atmospheric', 'cello', 'chillwave',
                             'cumbia', 'cybergrind', 'dischord', 'frenchcore', 'gospel', 'guitar',
                             'horrorcore', 'instrumental', 'mathcore', 'neocrust', 'outsider', 'touhou',
-                            'bubblegum bass', 'political', 'new age', 'all'
+                            'bubblegum bass', 'political', 'new age', 'united states'
                         ];
                         
                         // Find first tag that's not in blacklist

@@ -1,8 +1,6 @@
 // Netlify Serverless Function - Last.fm API Proxy
 // This keeps the API key secure on the server-side
 
-const https = require('https');
-
 exports.handler = async (event, context) => {
   // CORS headers for all responses
   const headers = {
@@ -23,7 +21,6 @@ exports.handler = async (event, context) => {
 
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
-    console.log('[Last.fm] Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
       headers,
@@ -38,7 +35,7 @@ exports.handler = async (event, context) => {
     const API_KEY = process.env.LASTFM_API_KEY;
     
     if (!API_KEY) {
-      console.error('[Last.fm] API key not configured in environment variables');
+      console.error('[Last.fm] API key not configured');
       return {
         statusCode: 500,
         headers,
@@ -47,40 +44,31 @@ exports.handler = async (event, context) => {
     }
 
     // Build Last.fm API URL
-    const queryParams = new URLSearchParams({
-      method: method,
-      api_key: API_KEY,
-      format: 'json',
-      ...params
-    });
-
-    const apiUrl = `https://ws.audioscrobbler.com/2.0/?${queryParams.toString()}`;
+    const url = new URL('https://ws.audioscrobbler.com/2.0/');
+    url.searchParams.append('method', method);
+    url.searchParams.append('api_key', API_KEY);
+    url.searchParams.append('format', 'json');
     
-    console.log('[Last.fm] Request:', method, 'Artist:', params.artist || params.album || 'N/A');
+    // Add additional params
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.append(key, value);
+    }
 
-    // Make HTTP request using native https module (always available)
-    const data = await new Promise((resolve, reject) => {
-      https.get(apiUrl, (res) => {
-        let body = '';
-        
-        res.on('data', (chunk) => {
-          body += chunk;
-        });
-        
-        res.on('end', () => {
-          try {
-            const json = JSON.parse(body);
-            resolve(json);
-          } catch (e) {
-            reject(new Error('Invalid JSON from Last.fm'));
-          }
-        });
-      }).on('error', (err) => {
-        reject(err);
-      });
-    });
+    console.log('[Last.fm] Request:', method, params.artist || params.album);
 
-    console.log('[Last.fm] Success');
+    // Fetch from Last.fm - using native fetch (Node 18+) or global fetch
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) {
+      console.error('[Last.fm] Response not OK:', response.status);
+      return {
+        statusCode: response.status,
+        headers,
+        body: JSON.stringify({ error: 'Last.fm API error', status: response.status })
+      };
+    }
+
+    const data = await response.json();
 
     // Return response
     return {
@@ -90,8 +78,7 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('[Last.fm] Error:', error.message);
-    console.error('[Last.fm] Stack:', error.stack);
+    console.error('[Last.fm] Error:', error.message, error.stack);
     
     return {
       statusCode: 500,

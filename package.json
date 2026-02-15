@@ -1,0 +1,12 @@
+{
+  "name": "record-shelf-pwa",
+  "version": "1.3.0",
+  "description": "Progressive Web App for music collection with Tidal integration",
+  "private": true,
+  "dependencies": {
+    "@netlify/blobs": "^7.0.0"
+  },
+  "scripts": {
+    "dev": "netlify dev"
+  }
+}
