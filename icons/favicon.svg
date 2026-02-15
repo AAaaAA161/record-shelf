@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512"><svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="512" height="512"><svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Record Shelf Logo - Vinyl Record Design -->
+    
+    <!-- Outer ring -->
+    <circle cx="256" cy="256" r="236" fill="#1f2128"></circle>
+    
+    <!-- Grooves (vinyl texture) -->
+    <circle cx="256" cy="256" r="202" fill="none" stroke="#2a2d3a" stroke-width="6"></circle>
+    <circle cx="256" cy="256" r="175" fill="none" stroke="#2a2d3a" stroke-width="6"></circle>
+    <circle cx="256" cy="256" r="148" fill="none" stroke="#2a2d3a" stroke-width="6"></circle>
+    
+    <!-- Center label (copper accent) -->
+    <circle cx="256" cy="256" r="94" fill="#d4845f"></circle>
+    <circle cx="256" cy="256" r="81" fill="#1f2128"></circle>
+    
+    <!-- Center hole -->
+    <circle cx="256" cy="256" r="27" fill="white"></circle>
+    
+    <!-- Accent line (adds movement) -->
+    <path d="M 256 162 Q 303 256 256 350" stroke="#d4845f" stroke-width="10" fill="none" opacity="0.6"></path>
+</svg></svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>
