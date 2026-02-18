@@ -90,39 +90,124 @@
             animation: fadeIn 0.6s ease-out;
         }
 
-        .upload-area {
+        /* Modern Cards Layout */
+        .upload-cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 30px;
+            padding: 40px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @media (max-width: 1000px) {
+            .upload-cards-container {
+                grid-template-columns: 1fr;
+                max-width: 600px;
+            }
+        }
+
+        .upload-card {
             background: var(--bg-secondary);
-            border: 2px dashed var(--border);
             border-radius: 20px;
-            padding: 60px 40px;
-            max-width: 600px;
-            margin: 0 auto 40px;
+            padding: 30px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .upload-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .upload-card-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .upload-card-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.8;
+        }
+
+        .upload-card h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .upload-card-header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .backup-restore-area {
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .backup-icon {
+            font-size: 4rem;
+            opacity: 0.5;
+            margin-bottom: 20px;
+        }
+
+        .backup-restore-btn {
+            background: linear-gradient(135deg, rgba(100, 150, 255, 0.2), rgba(100, 150, 255, 0.1));
+            color: rgba(100, 150, 255, 1);
+            border: 2px solid rgba(100, 150, 255, 0.3);
+            padding: 16px 36px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(100, 150, 255, 0.1);
+        }
+
+        .backup-restore-btn:hover {
+            background: linear-gradient(135deg, rgba(100, 150, 255, 0.3), rgba(100, 150, 255, 0.2));
+            border-color: rgba(100, 150, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(100, 150, 255, 0.2);
+        }
+
+        .upload-area {
+            background: var(--bg-card);
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            padding: 40px 30px;
             transition: all 0.3s ease;
             cursor: pointer;
+            margin-bottom: 20px;
         }
 
         .upload-area:hover, .upload-area.dragging {
             border-color: var(--accent);
-            background: var(--bg-card);
+            background: var(--bg-card-hover);
             transform: scale(1.02);
         }
 
         .upload-icon {
-            font-size: 3.5rem;
-            margin-bottom: 20px;
-            opacity: 0.6;
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
         }
 
         .upload-text {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .upload-hint {
             color: var(--text-secondary);
-            font-size: 0.95rem;
-            margin-bottom: 30px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
         }
 
         .upload-btn {
@@ -149,18 +234,17 @@
         }
 
         .csv-example {
-            background: var(--bg-secondary);
-            border-radius: 16px;
-            padding: 30px;
-            max-width: 600px;
-            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 20px;
             text-align: left;
         }
 
         .csv-example h3 {
-            font-size: 1.1rem;
-            margin-bottom: 15px;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
             font-weight: 600;
+            opacity: 0.8;
         }
 
         .csv-example code {
@@ -258,6 +342,113 @@
             background: rgba(100, 150, 255, 0.1);
             border-color: rgba(100, 150, 255, 0.5);
             transform: translateY(-2px);
+        }
+
+        /* Dropdown Menu for Backup */
+        .backup-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .backup-dropdown-btn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .backup-dropdown-btn:hover {
+            background: var(--bg-card);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .dropdown-arrow {
+            font-size: 0.8rem;
+            transition: transform 0.2s ease;
+        }
+
+        .backup-dropdown-btn:hover .dropdown-arrow {
+            transform: translateY(2px);
+        }
+
+        .backup-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            min-width: 280px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .backup-dropdown-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .backup-dropdown-menu button {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 16px 20px;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-primary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .backup-dropdown-menu button:last-of-type {
+            border-bottom: none;
+        }
+
+        .backup-dropdown-menu button:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .menu-icon {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+
+        .menu-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 2px;
+        }
+
+        .menu-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .menu-info {
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.2);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
 
         /* Main Category Sections */
@@ -933,45 +1124,61 @@
 
             showUploadScreen() {
                 document.getElementById('app').innerHTML = `
-                    <h1>Record Shelf</h1>
-                    <p class="subtitle">Meine Musiksammlung mit intelligenter Genre-Organisation</p>
-                    
-                    <div class="upload-container">
-                        <div class="upload-area" id="uploadArea">
-                            <div class="upload-icon">📁</div>
-                            <div class="upload-text">CSV-Datei hier ablegen</div>
-                            <div class="upload-hint">oder klicken zum Auswählen</div>
-                            <button class="upload-btn" id="uploadBtn">
-                                Datei auswählen
-                            </button>
-                            <input type="file" id="fileInput" class="file-input" accept=".csv" />
-                        </div>
-
-                        <div style="text-align: center; margin-top: 30px;">
-                            <p style="color: rgba(255,255,255,0.6); margin-bottom: 15px;">
-                                Oder lade ein bestehendes Backup:
-                            </p>
-                            <button class="import-btn" onclick="document.getElementById('import-file-upload').click()" title="Backup-Datei laden">
-                                📂 Backup laden
-                            </button>
-                            <input type="file" id="import-file-upload" accept=".json" style="display: none;" onchange="app.importBackup(event)">
-                        </div>
-
-                        <div class="csv-example">
-                            <h3>CSV-Format Beispiel:</h3>
-                            <code>album,artist
+                    <div class="upload-cards-container">
+                        <div class="upload-card">
+                            <div class="upload-card-header">
+                                <div class="upload-card-icon">📁</div>
+                                <h2>Neue Sammlung</h2>
+                                <p>CSV-Datei mit deiner Musiksammlung</p>
+                            </div>
+                            
+                            <div class="upload-area" id="uploadArea">
+                                <div class="upload-icon">📁</div>
+                                <div class="upload-text">CSV-Datei hier ablegen</div>
+                                <div class="upload-hint">oder klicken zum Auswählen</div>
+                                <button class="upload-btn" id="uploadBtn">
+                                    Datei auswählen
+                                </button>
+                                <input type="file" id="fileInput" class="file-input" accept=".csv" />
+                            </div>
+                            
+                            <div class="csv-example">
+                                <h3>CSV-Format:</h3>
+                                <code>album,artist
 Kind of Blue,Miles Davis
-Abbey Road,The Beatles
-The Dark Side of the Moon,Pink Floyd</code>
-                            <p style="margin-top: 15px; font-size: 0.9rem;">
-                                <strong>Optional:</strong> Du kannst auch eine Spalte "tidal_id" oder "tidal_url" hinzufügen für direktes Album-Öffnen in Tidal.
-                            </p>
-                            <code style="margin-top: 10px;">album,artist,tidal_id
-Kind of Blue,Miles Davis,251380836
-Abbey Road,The Beatles,77640617</code>
-                            <p style="margin-top: 15px; font-size: 0.85rem; color: var(--accent); border-left: 3px solid var(--accent); padding-left: 10px;">
-                                💡 <strong>Tipp:</strong> Auf Mobilgeräten mit installierter Tidal App funktioniert das automatische Abspielen am besten!
-                            </p>
+Abbey Road,The Beatles</code>
+                                <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
+                                    <strong>Optional:</strong> tidal_id Spalte für direktes Öffnen
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="upload-card">
+                            <div class="upload-card-header">
+                                <div class="upload-card-icon">📂</div>
+                                <h2>Backup wiederherstellen</h2>
+                                <p>Lade eine gespeicherte JSON-Datei</p>
+                            </div>
+                            
+                            <div class="backup-restore-area">
+                                <div class="backup-icon">📂</div>
+                                <p style="color: rgba(255,255,255,0.8); margin-bottom: 20px;">
+                                    Stelle deine Sammlung aus einem Backup wieder her.
+                                    <br><strong>Keine API-Calls</strong> – instant laden!
+                                </p>
+                                <button class="backup-restore-btn" onclick="document.getElementById('import-file-upload').click()">
+                                    📂 Backup-Datei wählen
+                                </button>
+                                <input type="file" id="import-file-upload" accept=".json" style="display: none;" onchange="app.importBackup(event)">
+                                
+                                <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <p style="font-size: 0.85rem; opacity: 0.6; margin-bottom: 8px;">💡 Wo finde ich Backups?</p>
+                                    <p style="font-size: 0.8rem; opacity: 0.5;">
+                                        Backups werden nach jedem CSV-Import automatisch heruntergeladen.
+                                        Format: <code style="font-size: 0.75rem;">record-shelf-backup-YYYY-MM-DD.json</code>
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -1167,12 +1374,14 @@ Abbey Road,The Beatles,77640617</code>
                 }
             }
 
-            getLastBackupInfo() {
+            getLastBackupInfo(compact = false) {
                 const lastBackup = localStorage.getItem('lastBackupDate');
                 if (!lastBackup) {
-                    return `<div style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.5); font-size: 0.85rem;">
-                        💡 Tipp: Erstelle regelmäßig Backups
-                    </div>`;
+                    return compact 
+                        ? `<span style="opacity: 0.5;">Noch kein Backup</span>`
+                        : `<div style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.5); font-size: 0.85rem;">
+                            💡 Tipp: Erstelle regelmäßig Backups
+                          </div>`;
                 }
 
                 const date = new Date(lastBackup);
@@ -1196,9 +1405,34 @@ Abbey Road,The Beatles,77640617</code>
 
                 const emoji = diffDays > 30 ? '⚠️' : '✅';
                 
-                return `<div style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.6); font-size: 0.85rem;">
-                    ${emoji} Letztes Backup: ${timeText}
-                </div>`;
+                return compact
+                    ? `${emoji} Letztes: ${timeText}`
+                    : `<div style="text-align: center; margin-bottom: 20px; color: rgba(255,255,255,0.6); font-size: 0.85rem;">
+                        ${emoji} Letztes Backup: ${timeText}
+                      </div>`;
+            }
+
+            toggleBackupMenu(event) {
+                event.stopPropagation();
+                const menu = document.getElementById('backupMenu');
+                const isOpen = menu.classList.contains('show');
+                
+                if (isOpen) {
+                    menu.classList.remove('show');
+                } else {
+                    menu.classList.add('show');
+                    // Close on outside click
+                    setTimeout(() => {
+                        document.addEventListener('click', this.closeBackupMenu.bind(this), { once: true });
+                    }, 100);
+                }
+            }
+
+            closeBackupMenu() {
+                const menu = document.getElementById('backupMenu');
+                if (menu) {
+                    menu.classList.remove('show');
+                }
             }
 
             async fetchAlbumCover(albumName, artistName) {
@@ -1361,34 +1595,11 @@ Abbey Road,The Beatles,77640617</code>
                     randomAlbums.push(...shuffled.slice(0, 3));
                 }
 
-                let html = `
-                    <div style="text-align: center; margin-bottom: 30px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                        <button class="reset-btn" onclick="app.loadNewCSV()">← Neue CSV laden</button>
-                        <button class="export-btn" onclick="app.exportBackup()" title="Alben als JSON downloaden">💾 Backup erstellen</button>
-                        <button class="import-btn" onclick="document.getElementById('import-file').click()" title="Backup-Datei laden">📂 Backup laden</button>
-                        <input type="file" id="import-file" accept=".json" style="display: none;" onchange="app.importBackup(event)">
-                    </div>
-                    ${this.getLastBackupInfo()}
-                    <div class="stats">
-                        <div class="stat-item">
-                            <span class="stat-number">${this.albums.length}</span>
-                            <span class="stat-label">Alben</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-number">${uniqueArtists}</span>
-                            <span class="stat-label">Musiker:innen</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-number">${totalGenres}</span>
-                            <span class="stat-label">Genres</span>
-                        </div>
-                    </div>
-                `;
-
-                // Add random albums showcase if we have at least 3
+                // Build random albums HTML
+                let randomAlbumsHTML = '';
                 if (randomAlbums.length === 3) {
-                    html += `
-                        <div style="display: flex; justify-content: center; gap: 12px; margin: 40px auto 50px; flex-wrap: wrap; max-width: 600px; padding: 0 20px;">
+                    randomAlbumsHTML = `
+                        <div style="display: flex; justify-content: center; gap: 12px; margin: 30px auto 40px; flex-wrap: wrap; max-width: 600px; padding: 0 20px;">
                             ${randomAlbums.map(album => {
                                 // Build Tidal links same way as renderAlbumCard
                                 let tidalDeepLink, tidalWebLink;
@@ -1417,6 +1628,56 @@ Abbey Road,The Beatles,77640617</code>
                         </div>
                     `;
                 }
+
+                let html = `
+                    <div style="text-align: center; margin-bottom: 30px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center;">
+                        <button class="reset-btn" onclick="app.loadNewCSV()">← Neue CSV laden</button>
+                        
+                        <div class="backup-dropdown">
+                            <button class="backup-dropdown-btn" onclick="app.toggleBackupMenu(event)">
+                                <span>⚙️ Backup</span>
+                                <span class="dropdown-arrow">▾</span>
+                            </button>
+                            <div class="backup-dropdown-menu" id="backupMenu">
+                                <button onclick="app.exportBackup(); app.closeBackupMenu();">
+                                    <span class="menu-icon">💾</span>
+                                    <div>
+                                        <div class="menu-title">Backup erstellen</div>
+                                        <div class="menu-desc">JSON-Datei downloaden</div>
+                                    </div>
+                                </button>
+                                <button onclick="document.getElementById('import-file').click(); app.closeBackupMenu();">
+                                    <span class="menu-icon">📂</span>
+                                    <div>
+                                        <div class="menu-title">Backup laden</div>
+                                        <div class="menu-desc">JSON-Datei importieren</div>
+                                    </div>
+                                </button>
+                                <div class="menu-info">
+                                    ${this.getLastBackupInfo(true)}
+                                </div>
+                            </div>
+                        </div>
+                        <input type="file" id="import-file" accept=".json" style="display: none;" onchange="app.importBackup(event)">
+                    </div>
+                    
+                    ${randomAlbumsHTML}
+                    
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-number">${this.albums.length}</span>
+                            <span class="stat-label">Alben</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${uniqueArtists}</span>
+                            <span class="stat-label">Musiker:innen</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${totalGenres}</span>
+                            <span class="stat-label">Genres</span>
+                        </div>
+                    </div>
+                `;
 
                 // Create main category sections
                 let globalGenreIndex = 0;
