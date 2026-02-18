@@ -12,9 +12,14 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.4.0 - GitHub Pages Edition
+        Record Shelf v1.4.1 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.4.1:
+        - 🔄 Menü-Konsolidierung: Backup & Einstellungen in einem "Optionen" Dropdown
+        - 📱 Touch Events Fix: Drag & Drop funktioniert jetzt in Firefox/Android
+        - ✨ Nur 2 Buttons: Besseres Layout auf kleinen Screens
         
         NEU in v1.4.0:
         - ⚙️ Einstellungen-Seite mit Kategorie-Sortierung
@@ -1641,7 +1646,7 @@ Abbey Road,The Beatles</code>
                     </div>
                     
                     <div class="app-footer">
-                        Record Shelf v1.4.0
+                        Record Shelf v1.4.1
                     </div>
                 `;
 
@@ -1714,7 +1719,7 @@ Abbey Road,The Beatles</code>
                         </div>
 
                         <div class="app-footer">
-                            Record Shelf v1.4.0
+                            Record Shelf v1.4.1
                         </div>
                     </div>
                 `;
@@ -1726,8 +1731,10 @@ Abbey Road,The Beatles</code>
                 const list = document.getElementById('categoryList');
                 const items = list.querySelectorAll('.category-item');
                 let draggedElement = null;
+                let touchY = 0;
 
                 items.forEach(item => {
+                    // Desktop: HTML5 Drag & Drop
                     item.addEventListener('dragstart', (e) => {
                         draggedElement = item;
                         item.classList.add('dragging');
@@ -1745,6 +1752,32 @@ Abbey Road,The Beatles</code>
                         } else {
                             list.insertBefore(draggedElement, afterElement);
                         }
+                    });
+
+                    // Mobile: Touch Events
+                    item.addEventListener('touchstart', (e) => {
+                        draggedElement = item;
+                        touchY = e.touches[0].clientY;
+                        item.classList.add('dragging');
+                        item.style.opacity = '0.5';
+                    }, { passive: false });
+
+                    item.addEventListener('touchmove', (e) => {
+                        e.preventDefault();
+                        touchY = e.touches[0].clientY;
+                        
+                        const afterElement = this.getDragAfterElement(list, touchY);
+                        if (afterElement == null) {
+                            list.appendChild(draggedElement);
+                        } else {
+                            list.insertBefore(draggedElement, afterElement);
+                        }
+                    }, { passive: false });
+
+                    item.addEventListener('touchend', (e) => {
+                        item.classList.remove('dragging');
+                        item.style.opacity = '1';
+                        draggedElement = null;
                     });
                 });
             }
@@ -2214,7 +2247,7 @@ Abbey Road,The Beatles</code>
                         
                         <div class="backup-dropdown">
                             <button class="backup-dropdown-btn" onclick="app.toggleBackupMenu(event)">
-                                <span>💾 Backup</span>
+                                <span>⚙️ Optionen</span>
                                 <span class="dropdown-arrow">▾</span>
                             </button>
                             <div class="backup-dropdown-menu" id="backupMenu">
@@ -2232,13 +2265,18 @@ Abbey Road,The Beatles</code>
                                         <div class="menu-desc">JSON-Datei importieren</div>
                                     </div>
                                 </button>
+                                <button onclick="app.showSettingsScreen(); app.closeBackupMenu();">
+                                    <span class="menu-icon">⚙️</span>
+                                    <div>
+                                        <div class="menu-title">Einstellungen</div>
+                                        <div class="menu-desc">Kategorien sortieren</div>
+                                    </div>
+                                </button>
                                 <div class="menu-info">
                                     ${this.getLastBackupInfo(true)}
                                 </div>
                             </div>
                         </div>
-                        
-                        <button class="settings-btn" onclick="app.showSettingsScreen()">⚙️ Einstellungen</button>
                         
                         <input type="file" id="import-file" accept=".json" style="display: none;" onchange="app.importBackup(event)">
                     </div>
@@ -2339,7 +2377,7 @@ Abbey Road,The Beatles</code>
 
                 html += `
                     <div class="app-footer">
-                        Record Shelf v1.4.0
+                        Record Shelf v1.4.1
                     </div>
                 `;
 
