@@ -12,9 +12,14 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.3.1 - GitHub Pages Edition
+        Record Shelf v1.3.2 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
-        Features: Export/Import backups, cards layout, dropdown menu
+        Features: IndexedDB storage, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.3.2:
+        - IndexedDB statt localStorage (robuster, persistenter)
+        - Automatisches Laden aus IndexedDB
+        - JSON Import füllt IndexedDB automatisch
         
         WICHTIG: Du brauchst einen Last.fm API Key!
         1. Gehe zu: https://www.last.fm/api/account/create
@@ -1066,58 +1071,131 @@
                 return originalGenre.charAt(0).toUpperCase() + originalGenre.slice(1);
             }
 
-            init() {
-                // Check if we have saved albums
-                const savedAlbums = this.loadFromStorage();
+            async init() {
+                this.showLoading('Lade gespeicherte Alben...');
                 
-                if (savedAlbums && savedAlbums.length > 0) {
-                    console.log(`${savedAlbums.length} gespeicherte Alben gefunden`);
-                    this.albums = savedAlbums;
+                try {
+                    // Try to load from IndexedDB
+                    const savedAlbums = await this.loadFromIndexedDB();
                     
-                    // Re-map genres in case the mapping has changed
-                    this.albums.forEach(album => {
-                        if (album.genre) {
-                            const oldGenre = album.genre;
-                            album.genre = this.mapGenre(oldGenre);
-                            if (oldGenre !== album.genre) {
-                                console.log(`Genre aktualisiert für ${album.album}: ${oldGenre} → ${album.genre}`);
+                    if (savedAlbums && savedAlbums.length > 0) {
+                        console.log(`${savedAlbums.length} gespeicherte Alben aus IndexedDB gefunden`);
+                        this.albums = savedAlbums;
+                        
+                        // Re-map genres in case the mapping has changed
+                        this.albums.forEach(album => {
+                            if (album.genre) {
+                                const oldGenre = album.genre;
+                                album.genre = this.mapGenre(oldGenre);
+                                if (oldGenre !== album.genre) {
+                                    console.log(`Genre aktualisiert für ${album.album}: ${oldGenre} → ${album.genre}`);
+                                }
                             }
-                        }
-                    });
-                    
-                    // Save updated genres
-                    this.saveToStorage();
-                    
-                    this.renderAlbumsByGenre();
-                } else {
+                        });
+                        
+                        // Save updated genres back to IndexedDB
+                        await this.saveToIndexedDB();
+                        
+                        this.renderAlbumsByGenre();
+                    } else {
+                        console.log('Keine gespeicherten Alben gefunden');
+                        this.showUploadScreen();
+                    }
+                } catch (error) {
+                    console.error('Fehler beim Laden:', error);
                     this.showUploadScreen();
                 }
             }
 
-            loadFromStorage() {
-                try {
-                    const stored = localStorage.getItem('albumLibrary');
-                    if (stored) {
-                        return JSON.parse(stored);
-                    }
-                } catch (error) {
-                    console.error('Fehler beim Laden aus localStorage:', error);
-                }
-                return null;
+            // IndexedDB Helper Methods
+            async openDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open('RecordShelfDB', 1);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains('albums')) {
+                            db.createObjectStore('albums', { keyPath: 'id' });
+                        }
+                    };
+                });
             }
 
-            saveToStorage() {
+            async loadFromIndexedDB() {
                 try {
-                    localStorage.setItem('albumLibrary', JSON.stringify(this.albums));
-                    console.log('Alben im localStorage gespeichert');
+                    const db = await this.openDB();
+                    const transaction = db.transaction(['albums'], 'readonly');
+                    const store = transaction.objectStore('albums');
+                    const request = store.get('albumLibrary');
+                    
+                    return new Promise((resolve, reject) => {
+                        request.onsuccess = () => {
+                            if (request.result && request.result.albums) {
+                                console.log('✅ Alben aus IndexedDB geladen');
+                                resolve(request.result.albums);
+                            } else {
+                                resolve(null);
+                            }
+                        };
+                        request.onerror = () => {
+                            console.error('Fehler beim Laden aus IndexedDB:', request.error);
+                            reject(request.error);
+                        };
+                    });
                 } catch (error) {
-                    console.error('Fehler beim Speichern in localStorage:', error);
+                    console.error('Fehler beim Öffnen der IndexedDB:', error);
+                    return null;
                 }
             }
 
-            clearStorage() {
-                localStorage.removeItem('albumLibrary');
-                console.log('localStorage gelöscht');
+            async saveToIndexedDB() {
+                try {
+                    const db = await this.openDB();
+                    const transaction = db.transaction(['albums'], 'readwrite');
+                    const store = transaction.objectStore('albums');
+                    
+                    const data = {
+                        id: 'albumLibrary',
+                        albums: this.albums,
+                        savedAt: new Date().toISOString()
+                    };
+                    
+                    store.put(data);
+                    
+                    return new Promise((resolve, reject) => {
+                        transaction.oncomplete = () => {
+                            console.log('✅ Alben in IndexedDB gespeichert');
+                            resolve();
+                        };
+                        transaction.onerror = () => {
+                            console.error('Fehler beim Speichern in IndexedDB:', transaction.error);
+                            reject(transaction.error);
+                        };
+                    });
+                } catch (error) {
+                    console.error('Fehler beim Speichern in IndexedDB:', error);
+                }
+            }
+
+            async clearIndexedDB() {
+                try {
+                    const db = await this.openDB();
+                    const transaction = db.transaction(['albums'], 'readwrite');
+                    const store = transaction.objectStore('albums');
+                    store.delete('albumLibrary');
+                    
+                    return new Promise((resolve) => {
+                        transaction.oncomplete = () => {
+                            console.log('✅ IndexedDB gelöscht');
+                            resolve();
+                        };
+                    });
+                } catch (error) {
+                    console.error('Fehler beim Löschen der IndexedDB:', error);
+                }
             }
 
             showUploadScreen() {
@@ -1319,8 +1397,8 @@ Abbey Road,The Beatles</code>
 
                     console.log('Alle Daten geladen, rendere jetzt...');
                     
-                    // Save to localStorage
-                    this.saveToStorage();
+                    // Save to IndexedDB
+                    await this.saveToIndexedDB();
                     
                     // Auto-create backup after successful import
                     this.autoExportBackup();
@@ -1816,9 +1894,9 @@ Abbey Road,The Beatles</code>
                 this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
             }
 
-            loadNewCSV() {
+            async loadNewCSV() {
                 if (confirm('Möchtest du wirklich eine neue CSV laden? Die aktuellen Daten werden überschrieben.')) {
-                    this.clearStorage();
+                    await this.clearIndexedDB();
                     this.albums = [];
                     this.showUploadScreen();
                 }
@@ -1877,7 +1955,7 @@ Abbey Road,The Beatles</code>
 
                 const reader = new FileReader();
                 
-                reader.onload = (e) => {
+                reader.onload = async (e) => {
                     try {
                         const backup = JSON.parse(e.target.result);
                         
@@ -1899,13 +1977,13 @@ Abbey Road,The Beatles</code>
                         // Restore albums
                         this.albums = backup.albums;
                         
-                        // Save to localStorage
-                        this.saveToStorage();
+                        // Save to IndexedDB
+                        await this.saveToIndexedDB();
                         
                         // Re-render
                         this.renderAlbumsByGenre();
                         
-                        console.log('✅ Backup geladen:', this.albums.length, 'Alben');
+                        console.log('✅ Backup geladen und in IndexedDB gespeichert:', this.albums.length, 'Alben');
                         
                         // Reset file input
                         event.target.value = '';
