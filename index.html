@@ -12,9 +12,13 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.3.2 - GitHub Pages Edition
+        Record Shelf v1.3.2.1 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
-        Features: IndexedDB storage, Export/Import backups, cards layout, dropdown menu
+        Features: IndexedDB storage, Storage Persistence API, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.3.2.1:
+        - Storage Persistence API (fragt um Erlaubnis, Daten dauerhaft zu speichern)
+        - Hilft gegen automatisches Löschen in Brave & anderen Privacy-Browsern
         
         NEU in v1.3.2:
         - IndexedDB statt localStorage (robuster, persistenter)
@@ -1072,6 +1076,9 @@
             }
 
             async init() {
+                // Request persistent storage (wichtig für Brave & Privacy-Browser)
+                await this.requestPersistentStorage();
+                
                 this.showLoading('Lade gespeicherte Alben...');
                 
                 try {
@@ -1195,6 +1202,37 @@
                     });
                 } catch (error) {
                     console.error('Fehler beim Löschen der IndexedDB:', error);
+                }
+            }
+
+            async requestPersistentStorage() {
+                if (navigator.storage && navigator.storage.persist) {
+                    try {
+                        // Check if already granted
+                        const isPersisted = await navigator.storage.persisted();
+                        
+                        if (isPersisted) {
+                            console.log('✅ Storage ist bereits persistent');
+                            return true;
+                        }
+                        
+                        // Request persistence
+                        const granted = await navigator.storage.persist();
+                        
+                        if (granted) {
+                            console.log('✅ Persistent Storage aktiviert! Daten bleiben erhalten.');
+                        } else {
+                            console.log('⚠️ Persistent Storage nicht gewährt. Browser könnte Daten löschen.');
+                        }
+                        
+                        return granted;
+                    } catch (error) {
+                        console.error('Fehler bei Storage Persistence Request:', error);
+                        return false;
+                    }
+                } else {
+                    console.log('ℹ️ Storage Persistence API nicht verfügbar (älterer Browser)');
+                    return false;
                 }
             }
 
