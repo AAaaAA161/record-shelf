@@ -12,9 +12,15 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.3.2.2 - GitHub Pages Edition
+        Record Shelf v1.3.2.3 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
         Features: IndexedDB storage, Storage Persistence API, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.3.2.3:
+        - Mobile Polish: Random Alben kleiner (max 100px)
+        - Mobile Polish: Akkordions kompakter (kleinere Schrift, weniger Padding)
+        - Mobile Polish: Text-Umbrüche verhindert (nowrap)
+        - Mobile Polish: Abstände reduziert (10px statt 16px)
         
         NEU in v1.3.2.2:
         - Mobile Layout Fix: Buttons horizontal aligned
@@ -529,12 +535,23 @@
 
         @media (max-width: 768px) {
             .random-albums-container {
-                gap: 8px;
+                gap: 6px;
                 padding: 0 16px;
+                max-width: 350px;
             }
 
             .random-album-item {
-                flex: 0 0 calc(33.333% - 6px);
+                flex: 0 0 calc(33.333% - 4px);
+                max-width: 100px;
+            }
+
+            .random-album-title {
+                font-size: 0.7rem;
+                margin-top: 4px;
+            }
+
+            .random-album-artist {
+                font-size: 0.65rem;
             }
         }
 
@@ -759,6 +776,46 @@
                 grid-template-columns: repeat(2, 1fr);
                 gap: 12px;
                 padding: 16px;
+            }
+
+            /* Compact Accordions on Mobile */
+            .main-category-header {
+                padding: 12px 0;
+                margin-bottom: 12px;
+            }
+
+            .main-category-title {
+                font-size: 1.2rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .genre-section {
+                margin-bottom: 10px;
+            }
+
+            .genre-header {
+                padding: 12px 16px;
+            }
+
+            .genre-emoji {
+                font-size: 1.2rem;
+            }
+
+            .genre-title {
+                font-size: 0.9rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                flex: 1;
+                margin: 0 10px;
+            }
+
+            .genre-count {
+                font-size: 0.65rem;
+                padding: 2px 6px;
+                white-space: nowrap;
             }
         }
 
