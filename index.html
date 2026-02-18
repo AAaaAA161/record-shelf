@@ -12,19 +12,14 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.2 - PWA Edition
-        Progressive Web App with Netlify Serverless Functions
-        Features: Offline support, installable, secure API keys
-    -->
-    <!-- 
-        Record Shelf v1.1
-        Personal music library organizer with Tidal integration
-        Features: Last.fm metadata, intelligent genre mapping, persistent storage
+        Record Shelf v1.3.1 - GitHub Pages Edition
+        Progressive Web App for GitHub Pages
+        Features: Export/Import backups, cards layout, dropdown menu
         
-        v1.1 Changes:
-        - Extended genre coverage (breakcore, vaporwave, throat singing, etc.)
-        - Expanded blacklist filters for better genre accuracy
-        - Added: emo, hamburger schule, riot grrrl, slowcore, funk, and more
+        WICHTIG: Du brauchst einen Last.fm API Key!
+        1. Gehe zu: https://www.last.fm/api/account/create
+        2. Erstelle einen kostenlosen Account
+        3. Ersetze 'DEIN_LASTFM_API_KEY_HIER' im Code mit deinem Key
     -->
     <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
@@ -806,6 +801,10 @@
         
         class AlbumLibraryApp {
             constructor() {
+                // Last.fm API Key - ERSETZE MIT DEINEM EIGENEN KEY!
+                // Hol dir einen kostenlosen Key auf: https://www.last.fm/api/account/create
+                this.LASTFM_API_KEY = 'c791b2900db01345232549f0bb64b168';
+                
                 this.albums = [];
                 this.genreCache = new Map();
                 this.genreMapping = this.createGenreMapping();
@@ -1436,21 +1435,10 @@ Abbey Road,The Beatles</code>
 
             async fetchAlbumCover(albumName, artistName) {
                 try {
-                    // Call Netlify Function instead of Last.fm directly
-                    const response = await fetch('/.netlify/functions/lastfm', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            method: 'album.getinfo',
-                            params: {
-                                artist: artistName,
-                                album: albumName
-                            }
-                        })
-                    });
-
+                    // Direct Last.fm API call (no Netlify Function needed)
+                    const url = `https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=${this.LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&album=${encodeURIComponent(albumName)}&format=json`;
+                    
+                    const response = await fetch(url);
                     const data = await response.json();
 
                     if (data.album && data.album.image) {
@@ -2041,20 +2029,10 @@ Abbey Road,The Beatles</code>
                 }
 
                 try {
-                    // Call Netlify Function instead of Last.fm directly
-                    const response = await fetch('/.netlify/functions/lastfm', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            method: 'artist.gettoptags',
-                            params: {
-                                artist: artist
-                            }
-                        })
-                    });
-
+                    // Direct Last.fm API call (no Netlify Function needed)
+                    const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptags&api_key=${this.LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&format=json`;
+                    
+                    const response = await fetch(url);
                     const data = await response.json();
 
                     let genre = 'Unknown';
