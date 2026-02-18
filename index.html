@@ -12,9 +12,15 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.3.2.3 - GitHub Pages Edition
+        Record Shelf v1.4.0 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
-        Features: IndexedDB storage, Storage Persistence API, Export/Import backups, cards layout, dropdown menu
+        Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.4.0:
+        - ⚙️ Einstellungen-Seite mit Kategorie-Sortierung
+        - Drag & Drop: Hauptkategorien umsortieren
+        - Persistierung der Kategorie-Reihenfolge in IndexedDB
+        - Versionsnummer im Footer auf allen Seiten
         
         NEU in v1.3.2.3:
         - Mobile Polish: Random Alben kleiner (max 100px)
@@ -490,6 +496,166 @@
             border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
 
+        /* Settings Button */
+        .settings-btn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .settings-btn:hover {
+            background: var(--bg-card);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        /* Settings Screen */
+        .settings-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .settings-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .settings-header h1 {
+            font-family: 'Pacifico', cursive;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .settings-section {
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .settings-section h2 {
+            font-size: 1.3rem;
+            margin-bottom: 10px;
+        }
+
+        .settings-section p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        .category-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .category-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: move;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .category-item:hover {
+            background: var(--bg-card-hover);
+            transform: translateX(4px);
+        }
+
+        .category-item.dragging {
+            opacity: 0.5;
+        }
+
+        .drag-handle {
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: grab;
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        .category-item-content {
+            flex: 1;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .settings-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .settings-actions button {
+            padding: 14px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card);
+            border-color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .settings-btn {
+                padding: 12px 16px;
+                font-size: 0.9rem;
+            }
+
+            .settings-container {
+                padding: 16px;
+            }
+
+            .settings-section {
+                padding: 20px;
+            }
+
+            .category-item {
+                padding: 12px 16px;
+            }
+
+            .category-item-content {
+                font-size: 1rem;
+            }
+        }
+
         /* Random Albums Showcase */
         .random-albums-container {
             display: flex;
@@ -932,6 +1098,26 @@
                 transform: translateY(0);
             }
         }
+
+        /* Footer */
+        .app-footer {
+            text-align: center;
+            padding: 30px 20px 20px;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            opacity: 0.6;
+            margin-top: 60px;
+        }
+
+        .app-footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .app-footer a:hover {
+            color: var(--accent);
+        }
     </style>
 </head>
 <body>
@@ -961,6 +1147,18 @@
                 this.genreColors = this.createGenreColors();
                 this.genreIcons = this.createGenreIcons();
                 this.mainCategories = this.createMainCategories();
+                
+                // Default category order
+                this.categoryOrder = [
+                    '🤘 Metal',
+                    '🎸 Rock & Alternative',
+                    '🔮 Experimental',
+                    '🎧 Electronic & Synth',
+                    '🎤 Pop',
+                    '🎵 Urban',
+                    '🎺 Traditional & Roots',
+                    '🌍 World'
+                ];
             }
 
             createMainCategories() {
@@ -1281,9 +1479,13 @@
                     
                     return new Promise((resolve, reject) => {
                         request.onsuccess = () => {
-                            if (request.result && request.result.albums) {
-                                console.log('✅ Alben aus IndexedDB geladen');
-                                resolve(request.result.albums);
+                            if (request.result) {
+                                console.log('✅ Daten aus IndexedDB geladen');
+                                // Load categoryOrder if available
+                                if (request.result.categoryOrder) {
+                                    this.categoryOrder = request.result.categoryOrder;
+                                }
+                                resolve(request.result.albums || null);
                             } else {
                                 resolve(null);
                             }
@@ -1308,6 +1510,7 @@
                     const data = {
                         id: 'albumLibrary',
                         albums: this.albums,
+                        categoryOrder: this.categoryOrder,
                         savedAt: new Date().toISOString()
                     };
                     
@@ -1315,7 +1518,7 @@
                     
                     return new Promise((resolve, reject) => {
                         transaction.oncomplete = () => {
-                            console.log('✅ Alben in IndexedDB gespeichert');
+                            console.log('✅ Daten in IndexedDB gespeichert');
                             resolve();
                         };
                         transaction.onerror = () => {
@@ -1436,6 +1639,10 @@ Abbey Road,The Beatles</code>
                             </div>
                         </div>
                     </div>
+                    
+                    <div class="app-footer">
+                        Record Shelf v1.4.0
+                    </div>
                 `;
 
                 this.setupFileUpload();
@@ -1467,6 +1674,131 @@ Abbey Road,The Beatles</code>
                     const file = e.target.files[0];
                     if (file) this.handleFile(file);
                 });
+            }
+
+            showSettingsScreen() {
+                document.getElementById('app').innerHTML = `
+                    <div class="settings-container">
+                        <div class="settings-header">
+                            <h1>⚙️ Einstellungen</h1>
+                            <p style="color: var(--text-secondary);">Passe Record Shelf an deine Bedürfnisse an</p>
+                        </div>
+
+                        <div class="settings-section">
+                            <h2>Kategorie-Reihenfolge</h2>
+                            <p>Ziehe die Kategorien um sie neu anzuordnen</p>
+                            
+                            <ul class="category-list" id="categoryList">
+                                ${this.categoryOrder.map((cat, index) => `
+                                    <li class="category-item" data-index="${index}" draggable="true">
+                                        <span class="drag-handle">☰</span>
+                                        <span class="category-item-content">${cat}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+
+                            <div class="settings-actions">
+                                <button class="btn-secondary" onclick="app.resetCategoryOrder()">
+                                    🔄 Standard wiederherstellen
+                                </button>
+                                <button class="btn-primary" onclick="app.saveCategoryOrder()">
+                                    💾 Speichern & Zurück
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center; margin-top: 20px;">
+                            <button class="btn-secondary" onclick="app.renderAlbumsByGenre()">
+                                ← Zurück ohne Speichern
+                            </button>
+                        </div>
+
+                        <div class="app-footer">
+                            Record Shelf v1.4.0
+                        </div>
+                    </div>
+                `;
+
+                this.setupDragAndDrop();
+            }
+
+            setupDragAndDrop() {
+                const list = document.getElementById('categoryList');
+                const items = list.querySelectorAll('.category-item');
+                let draggedElement = null;
+
+                items.forEach(item => {
+                    item.addEventListener('dragstart', (e) => {
+                        draggedElement = item;
+                        item.classList.add('dragging');
+                    });
+
+                    item.addEventListener('dragend', (e) => {
+                        item.classList.remove('dragging');
+                    });
+
+                    item.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        const afterElement = this.getDragAfterElement(list, e.clientY);
+                        if (afterElement == null) {
+                            list.appendChild(draggedElement);
+                        } else {
+                            list.insertBefore(draggedElement, afterElement);
+                        }
+                    });
+                });
+            }
+
+            getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('.category-item:not(.dragging)')];
+
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+
+            async saveCategoryOrder() {
+                const list = document.getElementById('categoryList');
+                const items = list.querySelectorAll('.category-item');
+                
+                // Update categoryOrder based on current DOM order
+                this.categoryOrder = Array.from(items).map(item => 
+                    item.querySelector('.category-item-content').textContent
+                );
+
+                // Save to IndexedDB
+                await this.saveToIndexedDB();
+
+                console.log('✅ Kategorie-Reihenfolge gespeichert:', this.categoryOrder);
+
+                // Go back to main view
+                this.renderAlbumsByGenre();
+            }
+
+            resetCategoryOrder() {
+                if (confirm('Möchtest du die Kategorie-Reihenfolge auf Standard zurücksetzen?')) {
+                    // Reset to default order
+                    this.categoryOrder = [
+                        '🤘 Metal',
+                        '🎸 Rock & Alternative',
+                        '🔮 Experimental',
+                        '🎧 Electronic & Synth',
+                        '🎤 Pop',
+                        '🎵 Urban',
+                        '🎺 Traditional & Roots',
+                        '🌍 World'
+                    ];
+
+                    // Refresh the settings screen
+                    this.showSettingsScreen();
+                }
             }
 
             handleFile(file) {
@@ -1821,10 +2153,13 @@ Abbey Road,The Beatles</code>
                     genresByCategory[mainCat][genre] = albumsByGenre[genre];
                 });
 
-                // Sort main categories by custom order
+                // Sort main categories by user-defined order
                 const sortedCategories = Object.keys(genresByCategory).sort((a, b) => {
-                    const orderA = this.mainCategories[a]?.order || 999;
-                    const orderB = this.mainCategories[b]?.order || 999;
+                    const indexA = this.categoryOrder.indexOf(a);
+                    const indexB = this.categoryOrder.indexOf(b);
+                    // If not in categoryOrder, put at end
+                    const orderA = indexA === -1 ? 999 : indexA;
+                    const orderB = indexB === -1 ? 999 : indexB;
                     return orderA - orderB;
                 });
                 
@@ -1879,7 +2214,7 @@ Abbey Road,The Beatles</code>
                         
                         <div class="backup-dropdown">
                             <button class="backup-dropdown-btn" onclick="app.toggleBackupMenu(event)">
-                                <span>⚙️ Backup</span>
+                                <span>💾 Backup</span>
                                 <span class="dropdown-arrow">▾</span>
                             </button>
                             <div class="backup-dropdown-menu" id="backupMenu">
@@ -1902,6 +2237,9 @@ Abbey Road,The Beatles</code>
                                 </div>
                             </div>
                         </div>
+                        
+                        <button class="settings-btn" onclick="app.showSettingsScreen()">⚙️ Einstellungen</button>
+                        
                         <input type="file" id="import-file" accept=".json" style="display: none;" onchange="app.importBackup(event)">
                     </div>
                     
@@ -1998,6 +2336,12 @@ Abbey Road,The Beatles</code>
                         </div>
                     `;
                 });
+
+                html += `
+                    <div class="app-footer">
+                        Record Shelf v1.4.0
+                    </div>
+                `;
 
                 document.getElementById('app').innerHTML = html;
             }
