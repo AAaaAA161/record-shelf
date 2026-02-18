@@ -12,9 +12,14 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.3.2.1 - GitHub Pages Edition
+        Record Shelf v1.3.2.2 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
         Features: IndexedDB storage, Storage Persistence API, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.3.2.2:
+        - Mobile Layout Fix: Buttons horizontal aligned
+        - Mobile Layout Fix: Random Alben gleich groß
+        - Mobile Layout Fix: Album-Grid immer 2 Spalten
         
         NEU in v1.3.2.1:
         - Storage Persistence API (fragt um Erlaubnis, Daten dauerhaft zu speichern)
@@ -304,6 +309,31 @@
             font-weight: 400;
         }
 
+        /* Button Container */
+        .button-container {
+            text-align: center;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap;
+            padding: 0 10px;
+        }
+
+        @media (max-width: 768px) {
+            .button-container {
+                gap: 8px;
+            }
+            
+            .reset-btn,
+            .backup-dropdown-btn {
+                padding: 12px 16px !important;
+                font-size: 0.9rem !important;
+                white-space: nowrap;
+            }
+        }
+
         /* Reset Button */
         .reset-btn {
             background: var(--bg-secondary);
@@ -452,6 +482,60 @@
             color: var(--text-secondary);
             text-align: center;
             border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Random Albums Showcase */
+        .random-albums-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin: 30px auto 40px;
+            max-width: 600px;
+            padding: 0 20px;
+        }
+
+        .random-album-item {
+            flex: 0 0 calc(33.333% - 8px);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .random-album-cover {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .random-album-title {
+            margin-top: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .random-album-artist {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .random-albums-container {
+                gap: 8px;
+                padding: 0 16px;
+            }
+
+            .random-album-item {
+                flex: 0 0 calc(33.333% - 6px);
+            }
         }
 
         /* Main Category Sections */
@@ -672,8 +756,8 @@
 
         @media (max-width: 768px) {
             .albums-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-                gap: 16px;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
                 padding: 16px;
             }
         }
@@ -812,7 +896,7 @@
             constructor() {
                 // Last.fm API Key - ERSETZE MIT DEINEM EIGENEN KEY!
                 // Hol dir einen kostenlosen Key auf: https://www.last.fm/api/account/create
-                this.LASTFM_API_KEY = 'c791b2900db01345232549f0bb64b168';
+                this.LASTFM_API_KEY = 'DEIN_LASTFM_API_KEY_HIER';
                 
                 this.albums = [];
                 this.genreCache = new Map();
@@ -1702,7 +1786,7 @@ Abbey Road,The Beatles</code>
                 let randomAlbumsHTML = '';
                 if (randomAlbums.length === 3) {
                     randomAlbumsHTML = `
-                        <div style="display: flex; justify-content: center; gap: 12px; margin: 30px auto 40px; flex-wrap: wrap; max-width: 600px; padding: 0 20px;">
+                        <div class="random-albums-container">
                             ${randomAlbums.map(album => {
                                 // Build Tidal links same way as renderAlbumCard
                                 let tidalDeepLink, tidalWebLink;
@@ -1716,15 +1800,15 @@ Abbey Road,The Beatles</code>
                                 }
                                 
                                 return `
-                                    <div style="flex: 1; min-width: 100px; max-width: 180px; cursor: pointer; transition: transform 0.2s ease;" 
+                                    <div class="random-album-item" 
                                          onclick="app.openInTidal('${tidalDeepLink.replace(/'/g, "\\'")}', '${tidalWebLink.replace(/'/g, "\\'")}', ${!!album.tidalId}, '${album.tidalId || ''}')"
                                          onmouseover="this.style.transform='translateY(-4px)'" 
                                          onmouseout="this.style.transform='translateY(0)'">
                                         <img src="${album.coverUrl}" 
                                              alt="${this.escapeHtml(album.album)}" 
-                                             style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);">
-                                        <div style="margin-top: 6px; font-size: 0.8rem; font-weight: 500; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.escapeHtml(album.album)}</div>
-                                        <div style="font-size: 0.7rem; color: var(--text-secondary); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${this.escapeHtml(album.artist)}</div>
+                                             class="random-album-cover">
+                                        <div class="random-album-title">${this.escapeHtml(album.album)}</div>
+                                        <div class="random-album-artist">${this.escapeHtml(album.artist)}</div>
                                     </div>
                                 `;
                             }).join('')}
@@ -1733,7 +1817,7 @@ Abbey Road,The Beatles</code>
                 }
 
                 let html = `
-                    <div style="text-align: center; margin-bottom: 30px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; align-items: center;">
+                    <div class="button-container">
                         <button class="reset-btn" onclick="app.loadNewCSV()">← Neue CSV laden</button>
                         
                         <div class="backup-dropdown">
