@@ -12,9 +12,15 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/icons/icon-192.png">
     <!-- 
-        Record Shelf v1.4.3 - GitHub Pages Edition
+        Record Shelf v1.4.4 - GitHub Pages Edition
         Progressive Web App for GitHub Pages
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
+        
+        NEU in v1.4.4:
+        - 🔧 CSV-Parsing-Fix: Unterstützt jetzt Tidal Export Format!
+        - ✅ Flexible Spaltennamen: "Album", "Artist name", "Tidal - id"
+        - 🎯 Zero-Config: Tidal CSV funktioniert ohne Änderungen
+        - 🐛 Regression-Fix: Tidal öffnet wieder Alben statt Suche
         
         NEU in v1.4.3:
         - 🎲 Random-Alben-Fix: Korrekte uniforme Zufallsauswahl
@@ -1632,7 +1638,7 @@ Abbey Road,The Beatles</code>
                     </div>
                     
                     <div class="app-footer">
-                        Record Shelf v1.4.3
+                        Record Shelf v1.4.4
                     </div>
                 `;
 
@@ -1705,7 +1711,7 @@ Abbey Road,The Beatles</code>
                         </div>
 
                         <div class="app-footer">
-                            Record Shelf v1.4.3
+                            Record Shelf v1.4.4
                         </div>
                     </div>
                 `;
@@ -1845,25 +1851,45 @@ Abbey Road,The Beatles</code>
                     return;
                 }
 
-                // Check for required columns
+                // Helper function to get value from row with flexible column names
+                const getColumnValue = (row, ...possibleNames) => {
+                    for (const name of possibleNames) {
+                        if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+                            return row[name];
+                        }
+                    }
+                    return null;
+                };
+
+                // Check for required columns (flexible matching)
                 const firstRow = data[0];
-                if (!firstRow.album || !firstRow.artist) {
-                    this.showError('Die CSV muss die Spalten "album" und "artist" enthalten.');
+                const albumValue = getColumnValue(firstRow, 'Album', 'album', 'ALBUM');
+                const artistValue = getColumnValue(firstRow, 'Artist name', 'Artist', 'artist', 'ARTIST', 'Artist Name');
+                
+                if (!albumValue || !artistValue) {
+                    this.showError('Die CSV muss Album- und Künstler-Spalten enthalten.');
                     return;
                 }
 
-                this.albums = data.filter(row => row.album && row.artist).map(row => {
+                this.albums = data.filter(row => {
+                    const album = getColumnValue(row, 'Album', 'album', 'ALBUM');
+                    const artist = getColumnValue(row, 'Artist name', 'Artist', 'artist', 'ARTIST', 'Artist Name');
+                    return album && artist;
+                }).map(row => {
                     const album = {
-                        album: row.album,
-                        artist: row.artist
+                        album: getColumnValue(row, 'Album', 'album', 'ALBUM'),
+                        artist: getColumnValue(row, 'Artist name', 'Artist', 'artist', 'ARTIST', 'Artist Name')
                     };
                     
-                    // Check for optional tidal_id or tidal_url column
-                    if (row.tidal_id) {
-                        album.tidalId = row.tidal_id;
-                    } else if (row.tidal_url) {
+                    // Check for optional tidal_id or tidal_url column (flexible matching)
+                    const tidalId = getColumnValue(row, 'Tidal - id', 'Tidal-id', 'tidal_id', 'tidal-id', 'Tidal_id', 'Tidal_ID', 'TIDAL_ID', 'tidalId', 'TidalId');
+                    const tidalUrl = getColumnValue(row, 'Tidal - url', 'Tidal-url', 'tidal_url', 'tidal-url', 'Tidal_url', 'TIDAL_URL', 'tidalUrl', 'TidalUrl');
+                    
+                    if (tidalId) {
+                        album.tidalId = tidalId;
+                    } else if (tidalUrl) {
                         // Extract ID from URL like https://tidal.com/album/123456
-                        const match = row.tidal_url.match(/album[\/:](\d+)/);
+                        const match = tidalUrl.match(/album[\/:](\d+)/);
                         if (match) {
                             album.tidalId = match[1];
                         }
@@ -2359,7 +2385,7 @@ Abbey Road,The Beatles</code>
 
                 html += `
                     <div class="app-footer">
-                        Record Shelf v1.4.3
+                        Record Shelf v1.4.4
                     </div>
                 `;
 
