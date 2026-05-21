@@ -1,3 +1,6 @@
+# Local
+BackLog/
+
 # Netlify
 .netlify/
 functions-serve/
