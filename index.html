@@ -7,9 +7,14 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.4.6 - GitHub Pages Edition
+        Record Shelf v1.4.7 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.4.7:
+        - ✎ Genre von Hand ändern: Tipp auf das Genre-Schild eines Albums
+        - Gilt für alle Alben des Künstlers, bleibt bei CSV-Import und Neuladen erhalten
+        - Korrekturen sind im Backup enthalten
+
         NEU in v1.4.6:
         - 🐛 Zufall pro Kategorie nimmt nur noch Alben dieser Kategorie (auch "Other")
         - 🐛 "Neue CSV laden" löscht die Sammlung erst, wenn der neue Import fertig ist
@@ -1080,6 +1085,73 @@
         }
 
         /* Error */
+        .album-genre {
+            cursor: pointer;
+        }
+
+        .genre-dialog-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            z-index: 1000;
+        }
+
+        .genre-dialog {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .genre-dialog h2 {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .genre-dialog p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+        }
+
+        .genre-dialog label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin: 12px 0 6px;
+        }
+
+        .genre-dialog select,
+        .genre-dialog input {
+            width: 100%;
+            padding: 10px;
+            font-size: 1rem;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .genre-dialog .settings-actions {
+            margin-top: 20px;
+        }
+
+        .genre-dialog .settings-actions button {
+            padding: 10px 18px;
+            font-size: 0.9rem;
+        }
+
+        .genre-dialog .btn-secondary {
+            background: var(--bg-card);
+        }
+
         .error {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid rgba(239, 68, 68, 0.3);
@@ -1140,7 +1212,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.4.6';
+        const APP_VERSION = '1.4.7';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1149,6 +1221,7 @@
                 
                 this.albums = [];
                 this.genreCache = new Map();
+                this.genreOverrides = {}; // artist (lowercase) -> genre chosen by hand
                 this.genreMapping = this.createGenreMapping();
                 this.genreColors = this.createGenreColors();
                 this.mainCategories = this.createMainCategories();
@@ -1380,6 +1453,17 @@
                 return originalGenre.charAt(0).toUpperCase() + originalGenre.slice(1);
             }
 
+            artistKey(artist) {
+                return (artist || '').toLowerCase().trim();
+            }
+
+            applyGenreOverrides(albums) {
+                albums.forEach(album => {
+                    const genre = this.genreOverrides[this.artistKey(album.artist)];
+                    if (genre) album.genre = genre;
+                });
+            }
+
             async init() {
                 // Request persistent storage (wichtig für Brave & Privacy-Browser)
                 await this.requestPersistentStorage();
@@ -1400,6 +1484,7 @@
                                 album.genre = this.mapGenre(oldGenre);
                             }
                         });
+                        this.applyGenreOverrides(this.albums);
                         
                         // Save updated genres back to IndexedDB
                         await this.saveToIndexedDB();
@@ -1445,6 +1530,7 @@
                                 if (request.result.categoryOrder) {
                                     this.categoryOrder = request.result.categoryOrder;
                                 }
+                                this.genreOverrides = request.result.genreOverrides || {};
                                 resolve(request.result.albums || null);
                             } else {
                                 resolve(null);
@@ -1471,6 +1557,7 @@
                         id: 'albumLibrary',
                         albums: this.albums,
                         categoryOrder: this.categoryOrder,
+                        genreOverrides: this.genreOverrides,
                         savedAt: new Date().toISOString()
                     };
                     
@@ -1862,6 +1949,7 @@ Abbey Road,The Beatles</code>
                         if (old.coverUrl) album.coverUrl = old.coverUrl;
                     }
                 });
+                this.applyGenreOverrides(imported);
 
                 this.showLoading('Lade Genres und Cover...');
                 this.loadAllAlbumData(imported);
@@ -1916,7 +2004,8 @@ Abbey Road,The Beatles</code>
                     version: APP_VERSION,
                     exportDate: new Date().toISOString(),
                     albumCount: this.albums.length,
-                    albums: this.albums
+                    albums: this.albums,
+                    genreOverrides: this.genreOverrides
                 };
 
                 const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -2403,6 +2492,9 @@ Abbey Road,The Beatles</code>
 
                         // Restore albums
                         this.albums = backup.albums;
+                        // Backups before v1.4.7 have no overrides: keep the current ones
+                        if (backup.genreOverrides) this.genreOverrides = backup.genreOverrides;
+                        this.applyGenreOverrides(this.albums);
                         
                         // Save to IndexedDB
                         await this.saveToIndexedDB();
@@ -2518,7 +2610,9 @@ Abbey Road,The Beatles</code>
                         <div class="album-info">
                             <div class="album-title">${this.escapeHtml(album.album || 'Unknown Album')}</div>
                             <div class="album-artist">${this.escapeHtml(album.artist || 'Unknown Artist')}</div>
-                            <span class="album-genre">${this.escapeHtml(album.genre || 'Unknown')}</span>
+                            <span class="album-genre" data-artist="${this.escapeAttr(album.artist || '')}"
+                                  onclick="event.stopPropagation(); app.showGenreDialog(this.dataset.artist)"
+                                  title="Genre ändern">${this.escapeHtml(album.genre || 'Unknown')} ✎</span>
                         </div>
                     </div>
                 `;
@@ -2624,6 +2718,87 @@ Abbey Road,The Beatles</code>
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            escapeAttr(text) {
+                return this.escapeHtml(text).replace(/"/g, '&quot;');
+            }
+
+            showGenreDialog(artist) {
+                const key = this.artistKey(artist);
+                const artistAlbums = this.albums.filter(a => this.artistKey(a.artist) === key);
+                const current = artistAlbums[0]?.genre || 'Unknown';
+                const hasOverride = !!this.genreOverrides[key];
+                const genres = [...new Set(this.albums.map(a => a.genre).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, 'de'));
+
+                const overlay = document.createElement('div');
+                overlay.className = 'genre-dialog-overlay';
+                overlay.innerHTML = `
+                    <div class="genre-dialog">
+                        <h2>Genre für ${this.escapeHtml(artist)}</h2>
+                        <p>Gilt für ${artistAlbums.length === 1 ? 'alle Alben' : `alle ${artistAlbums.length} Alben`} dieses Künstlers,
+                           auch künftige, und bleibt bei jedem Import erhalten.</p>
+                        <label for="genreSelect">Vorhandenes Genre</label>
+                        <select id="genreSelect">
+                            ${genres.map(g => `<option value="${this.escapeAttr(g)}" ${g === current ? 'selected' : ''}>${this.escapeHtml(g)}</option>`).join('')}
+                        </select>
+                        <label for="genreInput">Oder neues Genre</label>
+                        <input id="genreInput" type="text" placeholder="z. B. Krautrock" autocomplete="off">
+                        <div class="settings-actions">
+                            ${hasOverride ? '<button class="btn-secondary" data-action="reset">Last.fm-Genre</button>' : ''}
+                            <button class="btn-secondary" data-action="cancel">Abbrechen</button>
+                            <button class="btn-primary" data-action="save">Speichern</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+
+                const close = () => overlay.remove();
+                overlay.addEventListener('click', async (e) => {
+                    const action = e.target.dataset.action;
+                    if (e.target === overlay || action === 'cancel') return close();
+                    if (action === 'save') {
+                        const typed = overlay.querySelector('#genreInput').value.trim();
+                        const genre = typed
+                            ? typed.charAt(0).toUpperCase() + typed.slice(1)
+                            : overlay.querySelector('#genreSelect').value;
+                        close();
+                        if (genre) await this.setGenreOverride(artist, genre);
+                    }
+                    if (action === 'reset') {
+                        close();
+                        await this.setGenreOverride(artist, null);
+                    }
+                });
+            }
+
+            async setGenreOverride(artist, genre) {
+                const key = this.artistKey(artist);
+                if (genre) {
+                    this.genreOverrides[key] = genre;
+                } else {
+                    // Back to the Last.fm genre
+                    delete this.genreOverrides[key];
+                    this.genreCache.delete(artist);
+                    genre = await this.fetchGenreFromLastFM(artist);
+                }
+                this.albums.forEach(album => {
+                    if (this.artistKey(album.artist) === key) album.genre = genre;
+                });
+                await this.saveToIndexedDB();
+
+                // Re-render, keep open genres (plus the new one) and scroll position
+                const openGenres = new Set([...document.querySelectorAll('.genre-header.active .genre-title')]
+                    .map(el => el.textContent));
+                openGenres.add(genre);
+                const scrollY = window.scrollY;
+                this.renderAlbumsByGenre();
+                document.querySelectorAll('.genre-title').forEach((el, index) => {
+                    if (openGenres.has(el.textContent)) this.toggleGenre(index);
+                });
+                window.scrollTo(0, scrollY);
+                this.showToast(`✅ ${artist}: ${genre}`);
             }
 
             sleep(ms) {
