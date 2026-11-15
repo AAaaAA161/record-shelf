@@ -7,9 +7,17 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.4.5 - GitHub Pages Edition
+        Record Shelf v1.4.6 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.4.6:
+        - 🐛 Zufall pro Kategorie nimmt nur noch Alben dieser Kategorie (auch "Other")
+        - 🐛 "Neue CSV laden" löscht die Sammlung erst, wenn der neue Import fertig ist
+        - ⚡ CSV-Import lädt nur neue Alben (und fehlende Genres/Cover) von Last.fm
+        - 🛡️ Last.fm gedrosselt, mit automatischer Wiederholung bei Fehlern
+        - ✅ Rückmeldung nach "Backup erstellen"
+        - 🧹 Ungenutzten Code entfernt
+
         NEU in v1.4.5:
         - 🧹 PWA-Code entfernt (Manifest, Service Worker, Install-Prompt)
         - 🧹 Netlify-Reste entfernt (package.json, Deployment-Anleitung)
@@ -1132,6 +1140,8 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
+        const APP_VERSION = '1.4.6';
+
         class AlbumLibraryApp {
             constructor() {
                 // Last.fm API Key (Browser-App: Key ist im Quelltext sichtbar)
@@ -1141,7 +1151,6 @@
                 this.genreCache = new Map();
                 this.genreMapping = this.createGenreMapping();
                 this.genreColors = this.createGenreColors();
-                this.genreIcons = this.createGenreIcons();
                 this.mainCategories = this.createMainCategories();
                 
                 // Default category order
@@ -1291,48 +1300,9 @@
                 };
             }
 
-            createGenreIcons() {
-                return {
-                    'rock': '🎸',
-                    'pop': '🎤',
-                    'synth-pop': '🎹',
-                    'synthpop': '🎹',
-                    'electronic': '🎧',
-                    'hip hop': '🎤',
-                    'jazz': '🎺',
-                    'folk': '🎻',
-                    'r&b': '🎵',
-                    'punk': '⚡',
-                    'country': '🤠',
-                    'classical': '🎼',
-                    'reggae': '🌴',
-                    'blues': '🎸',
-                    'world': '🌍',
-                    'experimental': '🔮',
-                    'metal': '🤘',
-                    'alternative': '🎸',
-                    'indie': '💿',
-                    'indie rock': '🎸',
-                    'indie folk': '🎻',
-                    'shoegaze': '🌫️',
-                    'post-punk': '⚡',
-                    'grunge': '🎸',
-                    'heavy metal': '🤘',
-                    'death metal': '☠️',
-                    'black metal': '🖤',
-                    'thrash metal': '⚡',
-                    'default': '🎵'
-                };
-            }
-
             getGenreColor(genre) {
                 const lowerGenre = genre.toLowerCase();
                 return this.genreColors[lowerGenre] || this.genreColors['default'];
-            }
-
-            getGenreIcon(genre) {
-                const lowerGenre = genre.toLowerCase();
-                return this.genreIcons[lowerGenre] || this.genreIcons['default'];
             }
 
             createGenreMapping() {
@@ -1520,23 +1490,6 @@
                 }
             }
 
-            async clearIndexedDB() {
-                try {
-                    const db = await this.openDB();
-                    const transaction = db.transaction(['albums'], 'readwrite');
-                    const store = transaction.objectStore('albums');
-                    store.delete('albumLibrary');
-                    
-                    return new Promise((resolve) => {
-                        transaction.oncomplete = () => {
-                            resolve();
-                        };
-                    });
-                } catch (error) {
-                    console.error('Fehler beim Löschen der IndexedDB:', error);
-                }
-            }
-
             async requestPersistentStorage() {
                 if (navigator.storage && navigator.storage.persist) {
                     try {
@@ -1568,7 +1521,14 @@
             }
 
             showUploadScreen() {
+                const backButton = this.albums.length > 0
+                    ? `<div class="button-container">
+                           <button class="reset-btn" onclick="app.renderAlbumsByGenre()">← Zurück zur Sammlung</button>
+                       </div>`
+                    : '';
+
                 document.getElementById('app').innerHTML = `
+                    ${backButton}
                     <div class="upload-cards-container">
                         <div class="upload-card">
                             <div class="upload-card-header">
@@ -1594,6 +1554,10 @@ Kind of Blue,Miles Davis
 Abbey Road,The Beatles</code>
                                 <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
                                     <strong>Optional:</strong> tidal_id Spalte für direktes Öffnen
+                                </p>
+                                <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
+                                    Alben, die schon in der Sammlung sind, behalten Genre und Cover.
+                                    Nur neue Alben werden bei Last.fm nachgeschlagen.
                                 </p>
                             </div>
                         </div>
@@ -1628,7 +1592,7 @@ Abbey Road,The Beatles</code>
                     </div>
                     
                     <div class="app-footer">
-                        Record Shelf v1.4.5
+                        Record Shelf v${APP_VERSION}
                     </div>
                 `;
 
@@ -1701,7 +1665,7 @@ Abbey Road,The Beatles</code>
                         </div>
 
                         <div class="app-footer">
-                            Record Shelf v1.4.5
+                            Record Shelf v${APP_VERSION}
                         </div>
                     </div>
                 `;
@@ -1861,7 +1825,7 @@ Abbey Road,The Beatles</code>
                     return;
                 }
 
-                this.albums = data.filter(row => {
+                const imported = data.filter(row => {
                     const album = getColumnValue(row, 'Album', 'album', 'ALBUM');
                     const artist = getColumnValue(row, 'Artist name', 'Artist', 'artist', 'ARTIST', 'Artist Name');
                     return album && artist;
@@ -1887,56 +1851,53 @@ Abbey Road,The Beatles</code>
                     
                     return album;
                 });
-                
 
-                // Show loading state
+                // Keep genre and cover of albums that are already in the library
+                const albumKey = a => `${a.artist}|${a.album}`.toLowerCase().trim();
+                const known = new Map(this.albums.map(a => [albumKey(a), a]));
+                imported.forEach(album => {
+                    const old = known.get(albumKey(album));
+                    if (old) {
+                        if (old.genre && old.genre !== 'Unknown') album.genre = old.genre;
+                        if (old.coverUrl) album.coverUrl = old.coverUrl;
+                    }
+                });
+
                 this.showLoading('Lade Genres und Cover...');
-                
-                // Load all data first, then render
-                this.loadAllAlbumData();
+                this.loadAllAlbumData(imported);
             }
 
-            async loadAllAlbumData() {
+            async loadAllAlbumData(imported) {
                 try {
-                    const total = this.albums.length;
-                    const batchSize = 10; // Process 10 albums in parallel
-                    const delayBetweenBatches = 100; // 100ms delay (Last.fm is tolerant)
+                    // Only albums with missing genre or cover need Last.fm
+                    const todo = imported.filter(a => !a.genre || a.genre === 'Unknown' || !a.coverUrl);
+                    const total = todo.length;
+                    const batchSize = 2; // Last.fm allows about 5 requests per second
+                    const delayBetweenBatches = 500;
                     
                     let processed = 0;
                     
-                    // Process albums in batches
-                    for (let i = 0; i < this.albums.length; i += batchSize) {
-                        const batch = this.albums.slice(i, i + batchSize);
+                    for (let i = 0; i < todo.length; i += batchSize) {
+                        const batch = todo.slice(i, i + batchSize);
                         
-                        // Process all albums in this batch in parallel
                         await Promise.all(batch.map(async (album) => {
-                            // Load genre
-                            const genre = await this.fetchGenreFromLastFM(album.artist);
-                            album.genre = genre;
-                            
-                            // Load cover
-                            const coverUrl = await this.fetchAlbumCover(album.album, album.artist);
-                            album.coverUrl = coverUrl;
-                            
-                            // Tidal ID is already in CSV, no need to fetch
-                            if (!album.tidalId) {
+                            if (!album.genre || album.genre === 'Unknown') {
+                                album.genre = await this.fetchGenreFromLastFM(album.artist);
                             }
-                            
+                            if (!album.coverUrl) {
+                                album.coverUrl = await this.fetchAlbumCover(album.album, album.artist);
+                            }
                             processed++;
-                            
-                            // Update progress
                             this.showLoading(`Lade Album-Daten von Last.fm...`, processed, total);
-                            
                         }));
                         
-                        // Small delay between batches to respect rate limits
-                        if (i + batchSize < this.albums.length) {
+                        if (i + batchSize < todo.length) {
                             await this.sleep(delayBetweenBatches);
                         }
                     }
 
-                    
-                    // Save to IndexedDB
+                    // Replace the library only after everything is loaded
+                    this.albums = imported;
                     await this.saveToIndexedDB();
                     
                     // Auto-create backup after successful import
@@ -1950,42 +1911,44 @@ Abbey Road,The Beatles</code>
                 }
             }
 
+            downloadBackup() {
+                const backup = {
+                    version: APP_VERSION,
+                    exportDate: new Date().toISOString(),
+                    albumCount: this.albums.length,
+                    albums: this.albums
+                };
+
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `record-shelf-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                localStorage.setItem('lastBackupDate', new Date().toISOString());
+            }
+
             autoExportBackup() {
                 try {
-                    // Create backup object
-                    const backup = {
-                        version: '1.4.5',
-                        exportDate: new Date().toISOString(),
-                        albumCount: this.albums.length,
-                        albums: this.albums
-                    };
-
-                    // Convert to JSON
-                    const jsonString = JSON.stringify(backup, null, 2);
-                    const blob = new Blob([jsonString], { type: 'application/json' });
-                    
-                    // Create download link
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    
-                    // Filename with timestamp
-                    const date = new Date().toISOString().split('T')[0];
-                    a.download = `record-shelf-backup-${date}.json`;
-                    
-                    // Trigger download
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-
-                    // Save backup date
-                    localStorage.setItem('lastBackupDate', new Date().toISOString());
-
-                    
+                    this.downloadBackup();
                 } catch (error) {
                     console.error('Fehler beim automatischen Backup:', error);
                 }
+            }
+
+            showToast(message) {
+                const toast = document.createElement('div');
+                toast.textContent = message;
+                toast.style.cssText = 'position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); ' +
+                    'background: var(--bg-card); color: var(--text-primary); padding: 12px 20px; border-radius: 8px; ' +
+                    'box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 1000; transition: opacity 0.3s;';
+                document.body.appendChild(toast);
+                setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+                setTimeout(() => toast.remove(), 2400);
             }
 
             getLastBackupInfo(compact = false) {
@@ -2049,13 +2012,29 @@ Abbey Road,The Beatles</code>
                 }
             }
 
+            // Last.fm request with up to 3 attempts on network errors,
+            // rate limits (29) and temporary errors (8, 11, 16)
+            async lastfmRequest(params) {
+                const query = new URLSearchParams({ ...params, api_key: this.LASTFM_API_KEY, format: 'json' });
+                const url = `https://ws.audioscrobbler.com/2.0/?${query}`;
+                for (let attempt = 1; ; attempt++) {
+                    try {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        if ([8, 11, 16, 29].includes(data.error)) {
+                            throw new Error(`Last.fm Fehler ${data.error}: ${data.message}`);
+                        }
+                        return data;
+                    } catch (error) {
+                        if (attempt === 3) throw error;
+                        await this.sleep(2000 * attempt);
+                    }
+                }
+            }
+
             async fetchAlbumCover(albumName, artistName) {
                 try {
-                    // Direct Last.fm API call
-                    const url = `https://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=${this.LASTFM_API_KEY}&artist=${encodeURIComponent(artistName)}&album=${encodeURIComponent(albumName)}&format=json`;
-                    
-                    const response = await fetch(url);
-                    const data = await response.json();
+                    const data = await this.lastfmRequest({ method: 'album.getinfo', artist: artistName, album: albumName });
 
                     if (data.album && data.album.image) {
                         const images = data.album.image;
@@ -2072,71 +2051,6 @@ Abbey Road,The Beatles</code>
                     console.error('Error loading cover:', error);
                     return null;
                 }
-            }
-
-            async fetchTidalAlbumId(albumName, artistName) {
-                // First, try direct Tidal search API
-                try {
-                    const searchQuery = encodeURIComponent(`${artistName} ${albumName}`);
-                    const tidalResponse = await fetch(`https://api.tidal.com/v1/search/albums?query=${searchQuery}&limit=5&countryCode=US`);
-                    
-                    if (tidalResponse.ok) {
-                        const tidalData = await tidalResponse.json();
-                        if (tidalData.items && tidalData.items.length > 0) {
-                            // Find best match
-                            const bestMatch = tidalData.items.find(item => {
-                                const matchAlbum = item.title.toLowerCase().includes(albumName.toLowerCase()) ||
-                                                  albumName.toLowerCase().includes(item.title.toLowerCase());
-                                const matchArtist = item.artist?.name?.toLowerCase().includes(artistName.toLowerCase()) ||
-                                                   artistName.toLowerCase().includes(item.artist?.name?.toLowerCase());
-                                return matchAlbum && matchArtist;
-                            }) || tidalData.items[0]; // Fallback to first result
-                            
-                            if (bestMatch && bestMatch.id) {
-                                return bestMatch.id.toString();
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.log('Tidal API nicht verfügbar, versuche MusicBrainz:', error.message);
-                }
-
-                // Fallback to MusicBrainz
-                try {
-                    const mbQuery = encodeURIComponent(`${albumName} AND artist:${artistName}`);
-                    const mbResponse = await fetch(`https://musicbrainz.org/ws/2/release/?query=${mbQuery}&fmt=json&limit=5`);
-                    const mbData = await mbResponse.json();
-
-                    if (mbData.releases && mbData.releases.length > 0) {
-                        // Check first few releases for external URLs
-                        for (const release of mbData.releases.slice(0, 3)) {
-                            if (release.id) {
-                                const urlResponse = await fetch(`https://musicbrainz.org/ws/2/release/${release.id}?inc=url-rels&fmt=json`);
-                                const urlData = await urlResponse.json();
-                                
-                                if (urlData.relations) {
-                                    const tidalRelation = urlData.relations.find(rel => 
-                                        rel.url && rel.url.resource && rel.url.resource.includes('tidal.com')
-                                    );
-                                    
-                                    if (tidalRelation) {
-                                        const match = tidalRelation.url.resource.match(/album[\/:](\d+)/);
-                                        if (match) {
-                                            return match[1];
-                                        }
-                                    }
-                                }
-                                
-                                // Small delay between MusicBrainz requests (rate limiting)
-                                await this.sleep(300);
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error fetching Tidal ID from MusicBrainz:', error);
-                }
-
-                return null;
             }
 
             renderAlbumsByGenre() {
@@ -2375,7 +2289,7 @@ Abbey Road,The Beatles</code>
 
                 html += `
                     <div class="app-footer">
-                        Record Shelf v1.4.5
+                        Record Shelf v${APP_VERSION}
                     </div>
                 `;
 
@@ -2391,15 +2305,10 @@ Abbey Road,The Beatles</code>
             }
 
             shuffleCategory(mainCategory) {
-                // Get all genres for this main category
-                const categoryData = this.mainCategories[mainCategory];
-                if (!categoryData) return;
-
-                // Collect all albums from all genres in this category
-                const categoryAlbums = this.albums.filter(album => {
-                    const lowerGenre = (album.genre || '').toLowerCase();
-                    return categoryData.genres.some(g => lowerGenre.includes(g) || g.includes(lowerGenre));
-                });
+                // Same category mapping as renderAlbumsByGenre
+                const categoryAlbums = this.albums.filter(album =>
+                    this.getMainCategory(album.genre || 'Unknown') === mainCategory
+                );
 
                 if (categoryAlbums.length === 0) {
                     alert('Keine Alben in dieser Kategorie gefunden.');
@@ -2453,54 +2362,14 @@ Abbey Road,The Beatles</code>
                 this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
             }
 
-            async loadNewCSV() {
-                if (confirm('Möchtest du wirklich eine neue CSV laden? Die aktuellen Daten werden überschrieben.')) {
-                    await this.clearIndexedDB();
-                    this.albums = [];
-                    this.showUploadScreen();
-                }
+            loadNewCSV() {
+                this.showUploadScreen();
             }
 
             exportBackup() {
                 try {
-                    // Create backup object
-                    const backup = {
-                        version: '1.4.5',
-                        exportDate: new Date().toISOString(),
-                        albumCount: this.albums.length,
-                        albums: this.albums
-                    };
-
-                    // Convert to JSON
-                    const jsonString = JSON.stringify(backup, null, 2);
-                    const blob = new Blob([jsonString], { type: 'application/json' });
-                    
-                    // Create download link
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    
-                    // Filename with timestamp
-                    const date = new Date().toISOString().split('T')[0];
-                    a.download = `record-shelf-backup-${date}.json`;
-                    
-                    // Trigger download
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-
-                    // Save backup date to localStorage
-                    localStorage.setItem('lastBackupDate', new Date().toISOString());
-
-                    
-                    // Show success message briefly
-                    const originalText = event.target.textContent;
-                    event.target.textContent = '✅ Gespeichert!';
-                    setTimeout(() => {
-                        event.target.textContent = originalText;
-                    }, 2000);
-                    
+                    this.downloadBackup();
+                    this.showToast('✅ Backup gespeichert');
                 } catch (error) {
                     console.error('Fehler beim Exportieren:', error);
                     alert('Fehler beim Erstellen des Backups: ' + error.message);
@@ -2661,11 +2530,7 @@ Abbey Road,The Beatles</code>
                 }
 
                 try {
-                    // Direct Last.fm API call
-                    const url = `https://ws.audioscrobbler.com/2.0/?method=artist.gettoptags&api_key=${this.LASTFM_API_KEY}&artist=${encodeURIComponent(artist)}&format=json`;
-                    
-                    const response = await fetch(url);
-                    const data = await response.json();
+                    const data = await this.lastfmRequest({ method: 'artist.gettoptags', artist });
 
                     let genre = 'Unknown';
                     if (data.toptags && data.toptags.tag && data.toptags.tag.length > 0) {
