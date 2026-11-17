@@ -12,7 +12,7 @@
         
         NEU in v1.7.0 (Regale):
         - Jedes Genre ist eine waagrecht wischbare Reihe von Covern; "Alle" zeigt sie als Raster
-        - Genres als abgesetzte Kästen wie im alten Layout
+        - Kategorien als Karten mit farbigem Symbol, Genres als Kästen darin
         - Kategorien und Genres einklappbar, anfangs alles zu; Aufgeklapptes wird im Browser gemerkt
         - Kategorie-Leiste oben bleibt beim Scrollen sichtbar und springt zur Kategorie
         - Zufallsknöpfe pro Kategorie und Genre bleiben
@@ -797,17 +797,47 @@
 
         /* Main Category Sections */
         .main-category-section {
-            margin-bottom: 40px;
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 18px;
+            margin-bottom: 14px;
+            overflow: hidden;
         }
 
         .main-category-header {
-            background: transparent;
-            padding: 16px 0;
-            margin-bottom: 16px;
+            padding: 14px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 12px;
             user-select: none;
+        }
+
+        .main-category-content {
+            padding: 0 12px 12px;
+        }
+
+        .category-heading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .category-badge {
+            flex: 0 0 auto;
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .main-category-header .shuffle-btn {
+            background: var(--bg-card);
         }
 
         .main-category-title {
@@ -934,10 +964,6 @@
             transform: rotate(-90deg);
         }
 
-        .main-category-section.collapsed {
-            margin-bottom: 8px;
-        }
-
         .main-category-section.collapsed > .main-category-content,
         .shelf.collapsed > .shelf-row {
             display: none;
@@ -945,11 +971,15 @@
 
         /* Genre shelves */
         .shelf {
-            background: var(--bg-secondary);
-            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 12px;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             overflow: hidden;
+        }
+
+        .shelf:last-child {
+            margin-bottom: 0;
         }
 
         .shelf-header {
@@ -964,7 +994,7 @@
 
         .shelf-header:hover,
         .shelf:not(.collapsed) > .shelf-header {
-            background: var(--bg-card);
+            background: var(--bg-card-hover);
         }
 
         .shelf-header .genre-title {
@@ -1033,15 +1063,37 @@
 
         @media (max-width: 768px) {
             .main-category-header {
-                padding: 12px 0;
-                margin-bottom: 8px;
+                padding: 12px 14px;
+            }
+
+            .main-category-content {
+                padding: 0 10px 10px;
+            }
+
+            .category-badge {
+                width: 36px;
+                height: 36px;
+                border-radius: 10px;
+                font-size: 1.1rem;
             }
 
             .main-category-title {
-                font-size: 1.15rem;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                font-size: 1.05rem;
+                line-height: 1.25;
+            }
+
+            .main-category-header {
+                gap: 8px;
+            }
+
+            .category-heading {
+                gap: 10px;
+            }
+
+            .main-category-header .shuffle-btn {
+                width: 34px;
+                height: 34px;
+                font-size: 1rem;
             }
 
             .shelf-row {
@@ -2373,18 +2425,22 @@ Abbey Road,The Beatles</code>
                     const sortedGenres = Object.keys(genres).sort();
                     const totalAlbums = sortedGenres.reduce((sum, genre) => sum + genres[genre].length, 0);
                     const categoryCollapsed = !ui.categories.includes(mainCategory);
+                    // "🤘 Metal" -> badge "🤘" + title "Metal"
+                    const [icon, ...nameParts] = mainCategory.split(' ');
+                    const badgeColor = this.mainCategories[mainCategory]?.color || 'rgba(107, 207, 143, 0.4)';
 
                     html += `
                         <section class="main-category-section ${categoryCollapsed ? 'collapsed' : ''}" id="category-${catIndex}" data-category="${this.escapeAttr(mainCategory)}">
                             <div class="main-category-header" onclick="app.toggleCategory(this.parentElement)">
-                                <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
-                                    <span class="collapse-icon">▼</span>
-                                    <span class="main-category-title">${mainCategory}</span>
+                                <div class="category-heading">
+                                    <span class="category-badge" style="background: ${badgeColor}">${icon}</span>
+                                    <span class="main-category-title">${this.escapeHtml(nameParts.join(' '))}</span>
                                     <span class="main-category-count">${totalAlbums}</span>
                                 </div>
                                 <button class="shuffle-btn" onclick="event.stopPropagation(); app.shuffleCategory('${mainCategory.replace(/'/g, "\\'")}')" title="Zufälliges Album abspielen">
                                     ↻
                                 </button>
+                                <span class="collapse-icon">▼</span>
                             </div>
                             <div class="main-category-content">
                     `;
@@ -2404,11 +2460,11 @@ Abbey Road,The Beatles</code>
                         html += `
                             <div class="shelf ${shelfCollapsed ? 'collapsed' : ''}" data-genre="${this.escapeAttr(genre)}">
                                 <div class="shelf-header" onclick="app.toggleShelf(this.parentElement)">
-                                    <span class="collapse-icon">▼</span>
                                     <span class="genre-title">${this.escapeHtml(genre)}</span>
                                     <span class="genre-count">${albums.length}</span>
                                     ${allBtn}
                                     ${shuffleBtn}
+                                    <span class="collapse-icon">▼</span>
                                 </div>
                                 <div class="shelf-row">
                                     ${albums.map((album, index) => this.renderAlbumCard(album, index)).join('')}
