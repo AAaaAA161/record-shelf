@@ -13,6 +13,7 @@
         NEU in v1.7.0 (Regale):
         - Jedes Genre ist eine waagrecht wischbare Reihe von Covern; "Alle" zeigt sie als Raster
         - Kategorien als Karten mit farbigem Symbol, Genres als Kästen darin
+        - Einheitliche Linien-Icons für Kategorien (Tabler Icons, MIT) statt Emojis
         - Kategorien und Genres einklappbar, anfangs alles zu; Aufgeklapptes wird im Browser gemerkt
         - Kategorie-Leiste oben bleibt beim Scrollen sichtbar und springt zur Kategorie
         - Zufallsknöpfe pro Kategorie und Genre bleiben
@@ -632,6 +633,9 @@
 
         .category-item-content {
             flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
             font-size: 1.1rem;
             font-weight: 500;
         }
@@ -826,6 +830,7 @@
         }
 
         .category-badge {
+            color: #fff;
             flex: 0 0 auto;
             width: 40px;
             height: 40px;
@@ -928,6 +933,9 @@
         }
 
         .category-nav button {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             flex: 0 0 auto;
             font-family: 'Inter', sans-serif;
             font-size: 0.85rem;
@@ -1361,6 +1369,7 @@
                 this.genreMapping = this.createGenreMapping();
                 this.mainCategories = this.createMainCategories();
                 this.categoryIndex = this.buildCategoryIndex();
+                this.categoryIcons = this.createCategoryIcons();
                 this.genreMergeIndex = this.buildGenreMergeIndex();
                 
                 // Default category order
@@ -1511,6 +1520,32 @@
                         if (!index.has(key)) index.set(key, category);
                     }));
                 return index;
+            }
+
+            // Category icons: Tabler Icons (MIT license, https://tabler.io/icons), outline style.
+            // Path data only; drawn with the same stroke settings as Tabler.
+            createCategoryIcons() {
+                return {
+                    '🤘 Metal': ['M12 4c4.418 0 8 3.358 8 7.5c0 1.901 -.755 3.637 -2 4.96l0 2.54a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1v-2.54c-1.245 -1.322 -2 -3.058 -2 -4.96c0 -4.142 3.582 -7.5 8 -7.5z', 'M10 17v3', 'M14 17v3', 'M9 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M15 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0'],
+                    '🎸 Rock & Alternative': ['M16 18.5c2 -2.5 4 -6.5 4 -10.5c0 -2.946 -2.084 -4.157 -4.204 -4.654c-.864 -.23 -2.13 -.346 -3.796 -.346c-1.667 0 -2.932 .115 -3.796 .346c-2.12 .497 -4.204 1.708 -4.204 4.654c0 3.312 2 8 4 10.5c.297 .37 .618 .731 .963 1.081l.354 .347a3.9 3.9 0 0 0 5.364 0a14.05 14.05 0 0 0 1.319 -1.428z'],
+                    '🔮 Experimental': ['M9 3l6 0', 'M10 9l4 0', 'M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6'],
+                    '🎧 Electronic & Synth': ['M21 12h-2c-.894 0 -1.662 -.857 -1.761 -2c-.296 -3.45 -.749 -6 -2.749 -6s-2.5 3.582 -2.5 8s-.5 8 -2.5 8s-2.452 -2.547 -2.749 -6c-.1 -1.147 -.867 -2 -1.763 -2h-2'],
+                    '🎤 Pop': ['M15 12.9a5 5 0 1 0 -3.902 -3.9', 'M15 12.9l-3.902 -3.899l-7.513 8.584a2 2 0 1 0 2.827 2.83l8.588 -7.515z'],
+                    '🎵 Urban': ['M16 3.937a9 9 0 1 0 5 8.063', 'M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M20 4m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M20 4l-3.5 10l-2.5 2'],
+                    '🎺 Traditional & Roots': ['M3 5m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z', 'M9 19v-6', 'M8 5v8h2v-8', 'M15 19v-6', 'M14 5v8h2v-8'],
+                    '🌍 World': ['M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M3.6 9h16.8', 'M3.6 15h16.8', 'M11.5 3a17 17 0 0 0 0 18', 'M12.5 3a17 17 0 0 1 0 18'],
+                    'other': ['M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0', 'M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0', 'M7 12a5 5 0 0 1 5 -5', 'M12 17a5 5 0 0 0 5 -5']
+                };
+            }
+
+            categoryIcon(category, size = 22) {
+                const paths = this.categoryIcons[category] || this.categoryIcons.other;
+                return `<svg class="category-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths.map(d => `<path d="${d}"/>`).join('')}</svg>`;
+            }
+
+            // "🤘 Metal" -> "Metal" (the emoji stays part of the stored key)
+            categoryLabel(category) {
+                return category.replace(/^\S+\s+/, '');
             }
 
             getMainCategory(genre, useOverrides = true) {
@@ -1871,9 +1906,9 @@ Abbey Road,The Beatles</code>
                             
                             <ul class="category-list" id="categoryList">
                                 ${this.categoryOrder.map((cat, index) => `
-                                    <li class="category-item" data-index="${index}" draggable="true">
+                                    <li class="category-item" data-index="${index}" data-category="${this.escapeAttr(cat)}" draggable="true">
                                         <span class="drag-handle">☰</span>
-                                        <span class="category-item-content">${cat}</span>
+                                        <span class="category-item-content">${this.categoryIcon(cat, 18)}${this.escapeHtml(this.categoryLabel(cat))}</span>
                                     </li>
                                 `).join('')}
                             </ul>
@@ -1978,9 +2013,7 @@ Abbey Road,The Beatles</code>
                 const items = list.querySelectorAll('.category-item');
                 
                 // Update categoryOrder based on current DOM order
-                this.categoryOrder = Array.from(items).map(item => 
-                    item.querySelector('.category-item-content').textContent
-                );
+                this.categoryOrder = Array.from(items).map(item => item.dataset.category);
 
                 // Save to IndexedDB
                 await this.saveToIndexedDB();
@@ -2413,7 +2446,7 @@ Abbey Road,The Beatles</code>
                 html += `
                     <nav class="category-nav" aria-label="Kategorien">
                         ${sortedCategories.map((category, catIndex) =>
-                            `<button onclick="app.jumpToCategory(${catIndex})">${this.escapeHtml(category)}</button>`
+                            `<button onclick="app.jumpToCategory(${catIndex})">${this.categoryIcon(category, 15)}${this.escapeHtml(this.categoryLabel(category))}</button>`
                         ).join('')}
                     </nav>
                 `;
@@ -2425,16 +2458,14 @@ Abbey Road,The Beatles</code>
                     const sortedGenres = Object.keys(genres).sort();
                     const totalAlbums = sortedGenres.reduce((sum, genre) => sum + genres[genre].length, 0);
                     const categoryCollapsed = !ui.categories.includes(mainCategory);
-                    // "🤘 Metal" -> badge "🤘" + title "Metal"
-                    const [icon, ...nameParts] = mainCategory.split(' ');
                     const badgeColor = this.mainCategories[mainCategory]?.color || 'rgba(107, 207, 143, 0.4)';
 
                     html += `
                         <section class="main-category-section ${categoryCollapsed ? 'collapsed' : ''}" id="category-${catIndex}" data-category="${this.escapeAttr(mainCategory)}">
                             <div class="main-category-header" onclick="app.toggleCategory(this.parentElement)">
                                 <div class="category-heading">
-                                    <span class="category-badge" style="background: ${badgeColor}">${icon}</span>
-                                    <span class="main-category-title">${this.escapeHtml(nameParts.join(' '))}</span>
+                                    <span class="category-badge" style="background: ${badgeColor}">${this.categoryIcon(mainCategory)}</span>
+                                    <span class="main-category-title">${this.escapeHtml(this.categoryLabel(mainCategory))}</span>
                                     <span class="main-category-count">${totalAlbums}</span>
                                 </div>
                                 <button class="shuffle-btn" onclick="event.stopPropagation(); app.shuffleCategory('${mainCategory.replace(/'/g, "\\'")}')" title="Zufälliges Album abspielen">
@@ -3006,7 +3037,7 @@ Abbey Road,The Beatles</code>
                         <label for="categorySelect">Kategorie für dieses Genre</label>
                         <select id="categorySelect">
                             <option value="auto">Automatisch</option>
-                            ${Object.keys(this.mainCategories).map(c => `<option value="${this.escapeAttr(c)}">${this.escapeHtml(c)}</option>`).join('')}
+                            ${Object.keys(this.mainCategories).map(c => `<option value="${this.escapeAttr(c)}">${this.escapeHtml(this.categoryLabel(c))}</option>`).join('')}
                         </select>
                         <p class="genre-dialog-hint" id="categoryHint"></p>
                         <div class="settings-actions">
@@ -3037,7 +3068,7 @@ Abbey Road,The Beatles</code>
                     if (categorySelect.value !== 'auto') {
                         categoryHint.textContent = `Gilt für alle Alben mit dem Genre „${genre}“.`;
                     } else {
-                        categoryHint.textContent = `Automatisch: ${this.getMainCategory(genre, false)}`;
+                        categoryHint.textContent = `Automatisch: ${this.categoryLabel(this.getMainCategory(genre, false))}`;
                     }
                 };
                 genreSelect.addEventListener('change', updateCategory);
@@ -3089,7 +3120,7 @@ Abbey Road,The Beatles</code>
                 const scrollY = window.scrollY;
                 this.renderAlbumsByGenre();
                 window.scrollTo(0, scrollY);
-                this.showToast(`✅ ${artist}: ${genre} → ${this.getMainCategory(genre)}`);
+                this.showToast(`✅ ${artist}: ${genre} → ${this.categoryLabel(this.getMainCategory(genre))}`);
             }
 
             sleep(ms) {
