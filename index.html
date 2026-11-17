@@ -7,9 +7,16 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.4.8 - GitHub Pages Edition
+        Record Shelf v1.4.9 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.4.9:
+        - 🐛 Knöpfe oben ragen am Handy nicht mehr über den Rand
+        - "CSV importieren" ist jetzt im Optionen-Menü
+        - Albumtitel zweizeilig, Genre ändern über ✎ auf dem Cover
+        - Besser lesbare Zahlen (Statistik, Anzahl pro Genre/Kategorie)
+        - 🎲 Zufallsalben oben neu würfeln
+
         NEU in v1.4.8:
         - 🗂️ Kategorie pro Genre wählbar (im Genre-Dialog), z. B. "Hard bop" → Traditional & Roots
         - Gilt für alle Alben mit diesem Genre, bleibt bei Import und im Backup erhalten
@@ -327,7 +334,6 @@
             justify-content: center;
             gap: 20px;
             margin-bottom: 40px;
-            opacity: 0.6;
         }
 
         .stat-item {
@@ -345,7 +351,7 @@
             display: inline;
             font-size: 0.85rem;
             font-weight: 600;
-            color: var(--text-secondary);
+            color: var(--text-primary);
             margin-right: 4px;
         }
 
@@ -373,8 +379,8 @@
                 gap: 8px;
             }
             
-            .reset-btn,
-            .backup-dropdown-btn {
+            .button-container .reset-btn,
+            .button-container .backup-dropdown-btn {
                 padding: 12px 16px;
                 font-size: 0.9rem;
                 white-space: nowrap;
@@ -463,7 +469,7 @@
         .backup-dropdown-menu {
             position: absolute;
             top: calc(100% + 8px);
-            right: 0;
+            left: 50%;
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
@@ -471,7 +477,7 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             opacity: 0;
             visibility: hidden;
-            transform: translateY(-10px);
+            transform: translate(-50%, -10px);
             transition: all 0.2s ease;
             z-index: 1000;
             overflow: hidden;
@@ -480,7 +486,7 @@
         .backup-dropdown-menu.show {
             opacity: 1;
             visibility: visible;
-            transform: translateY(0);
+            transform: translate(-50%, 0);
         }
 
         .backup-dropdown-menu button {
@@ -738,6 +744,12 @@
             }
         }
 
+        .random-reroll {
+            display: flex;
+            justify-content: center;
+            margin: -24px 0 30px;
+        }
+
         /* Main Category Sections */
         .main-category-section {
             margin-bottom: 40px;
@@ -767,8 +779,7 @@
             font-size: 0.75rem;
             font-weight: 500;
             color: var(--text-secondary);
-            opacity: 0.6;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         .shuffle-btn {
@@ -877,8 +888,7 @@
             font-size: 0.7rem;
             font-weight: 500;
             color: var(--text-secondary);
-            opacity: 0.6;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
         .genre-preview-covers {
@@ -996,7 +1006,7 @@
             }
 
             .genre-count {
-                font-size: 0.65rem;
+                font-size: 0.75rem;
                 padding: 2px 6px;
                 white-space: nowrap;
             }
@@ -1035,9 +1045,11 @@
             font-size: 0.95rem;
             font-weight: 400;
             margin-bottom: 4px;
+            line-height: 1.3;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
         }
 
         .album-artist {
@@ -1045,22 +1057,27 @@
             font-size: 0.85rem;
             font-weight: 400;
             color: var(--text-secondary);
-            margin-bottom: 8px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .album-genre {
-            font-family: 'Inter', sans-serif;
-            display: inline-block;
-            background: rgba(212, 132, 95, 0.15);
-            color: var(--accent);
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 400;
-            border: 1px solid rgba(212, 132, 95, 0.3);
+        .album-edit-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.55);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        .album-edit-btn:hover {
+            background: var(--accent);
         }
 
         /* Loading */
@@ -1089,10 +1106,6 @@
         }
 
         /* Error */
-        .album-genre {
-            cursor: pointer;
-        }
-
         .genre-dialog-overlay {
             position: fixed;
             inset: 0;
@@ -1221,7 +1234,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.4.8';
+        const APP_VERSION = '1.4.9';
 
         class AlbumLibraryApp {
             constructor() {
@@ -2212,64 +2225,21 @@ Abbey Road,The Beatles</code>
                 const uniqueArtists = new Set(this.albums.map(album => album.artist)).size;
                 const totalGenres = Object.keys(albumsByGenre).length;
 
-                // Select 3 random albums with covers
-                const albumsWithCovers = this.albums.filter(album => album.coverUrl);
-                const randomAlbums = [];
-                if (albumsWithCovers.length >= 3) {
-                    // Use proper random selection without bias
-                    const available = [...albumsWithCovers];
-                    
-                    for (let i = 0; i < 3; i++) {
-                        const randomIndex = Math.floor(Math.random() * available.length);
-                        randomAlbums.push(available[randomIndex]);
-                        available.splice(randomIndex, 1); // Remove to avoid duplicates
-                    }
-                }
-
-                // Build random albums HTML
-                let randomAlbumsHTML = '';
-                if (randomAlbums.length === 3) {
-                    randomAlbumsHTML = `
-                        <div class="random-albums-container">
-                            ${randomAlbums.map(album => {
-                                // Build Tidal links same way as renderAlbumCard
-                                let tidalDeepLink, tidalWebLink;
-                                if (album.tidalId) {
-                                    tidalDeepLink = `tidal://play/album/${album.tidalId}`;
-                                    tidalWebLink = `https://listen.tidal.com/album/${album.tidalId}`;
-                                } else {
-                                    const searchQuery = encodeURIComponent(`${album.artist} ${album.album}`);
-                                    tidalDeepLink = `tidal://search?q=${searchQuery}`;
-                                    tidalWebLink = `https://listen.tidal.com/search?q=${searchQuery}`;
-                                }
-                                
-                                return `
-                                    <div class="random-album-item" 
-                                         onclick="app.openInTidal('${tidalDeepLink.replace(/'/g, "\\'")}', '${tidalWebLink.replace(/'/g, "\\'")}', ${!!album.tidalId}, '${album.tidalId || ''}')"
-                                         onmouseover="this.style.transform='translateY(-4px)'" 
-                                         onmouseout="this.style.transform='translateY(0)'">
-                                        <img src="${album.coverUrl}" 
-                                             alt="${this.escapeHtml(album.album)}" 
-                                             class="random-album-cover">
-                                        <div class="random-album-title">${this.escapeHtml(album.album)}</div>
-                                        <div class="random-album-artist">${this.escapeHtml(album.artist)}</div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    `;
-                }
-
                 let html = `
                     <div class="button-container">
-                        <button class="reset-btn" onclick="app.loadNewCSV()">← Neue CSV laden</button>
-                        
                         <div class="backup-dropdown">
                             <button class="backup-dropdown-btn" onclick="app.toggleBackupMenu(event)">
                                 <span>⚙️ Optionen</span>
                                 <span class="dropdown-arrow">▾</span>
                             </button>
                             <div class="backup-dropdown-menu" id="backupMenu">
+                                <button onclick="app.loadNewCSV(); app.closeBackupMenu();">
+                                    <span class="menu-icon">📄</span>
+                                    <div>
+                                        <div class="menu-title">CSV importieren</div>
+                                        <div class="menu-desc">Sammlung aus Tidal-Export aktualisieren</div>
+                                    </div>
+                                </button>
                                 <button onclick="app.exportBackup(); app.closeBackupMenu();">
                                     <span class="menu-icon">💾</span>
                                     <div>
@@ -2300,7 +2270,7 @@ Abbey Road,The Beatles</code>
                         <input type="file" id="import-file" accept=".json" style="display: none;" onchange="app.importBackup(event)">
                     </div>
                     
-                    ${randomAlbumsHTML}
+                    <div id="randomAlbums">${this.renderRandomAlbums()}</div>
                     
                     <div class="stats">
                         <div class="stat-item">
@@ -2401,6 +2371,61 @@ Abbey Road,The Beatles</code>
                 `;
 
                 document.getElementById('app').innerHTML = html;
+            }
+
+            renderRandomAlbums() {
+                // Select 3 random albums with covers
+                const albumsWithCovers = this.albums.filter(album => album.coverUrl);
+                const randomAlbums = [];
+                if (albumsWithCovers.length >= 3) {
+                    // Use proper random selection without bias
+                    const available = [...albumsWithCovers];
+                    
+                    for (let i = 0; i < 3; i++) {
+                        const randomIndex = Math.floor(Math.random() * available.length);
+                        randomAlbums.push(available[randomIndex]);
+                        available.splice(randomIndex, 1); // Remove to avoid duplicates
+                    }
+                }
+
+                if (randomAlbums.length < 3) return '';
+
+                return `
+                        <div class="random-albums-container">
+                            ${randomAlbums.map(album => {
+                                // Build Tidal links same way as renderAlbumCard
+                                let tidalDeepLink, tidalWebLink;
+                                if (album.tidalId) {
+                                    tidalDeepLink = `tidal://play/album/${album.tidalId}`;
+                                    tidalWebLink = `https://listen.tidal.com/album/${album.tidalId}`;
+                                } else {
+                                    const searchQuery = encodeURIComponent(`${album.artist} ${album.album}`);
+                                    tidalDeepLink = `tidal://search?q=${searchQuery}`;
+                                    tidalWebLink = `https://listen.tidal.com/search?q=${searchQuery}`;
+                                }
+                                
+                                return `
+                                    <div class="random-album-item" 
+                                         onclick="app.openInTidal('${tidalDeepLink.replace(/'/g, "\\'")}', '${tidalWebLink.replace(/'/g, "\\'")}', ${!!album.tidalId}, '${album.tidalId || ''}')"
+                                         onmouseover="this.style.transform='translateY(-4px)'" 
+                                         onmouseout="this.style.transform='translateY(0)'">
+                                        <img src="${album.coverUrl}" 
+                                             alt="${this.escapeHtml(album.album)}" 
+                                             class="random-album-cover">
+                                        <div class="random-album-title">${this.escapeHtml(album.album)}</div>
+                                        <div class="random-album-artist">${this.escapeHtml(album.artist)}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div class="random-reroll">
+                            <button class="shuffle-btn" onclick="app.rerollRandomAlbums()" title="Andere Zufallsalben" aria-label="Andere Zufallsalben">🎲</button>
+                        </div>
+                    `;
+            }
+
+            rerollRandomAlbums() {
+                document.getElementById('randomAlbums').innerHTML = this.renderRandomAlbums();
             }
 
             toggleGenre(index) {
@@ -2626,12 +2651,12 @@ Abbey Road,The Beatles</code>
                 return `
                     <div class="album-card" onclick="app.openInTidal('${tidalDeepLink.replace(/'/g, "\\'")}', '${tidalWebLink.replace(/'/g, "\\'")}', ${!!album.tidalId}, '${album.tidalId || ''}')">
                         <img class="album-cover" ${coverStyle} alt="${this.escapeHtml(album.album || 'Unknown Album')}" loading="lazy">
+                        <button class="album-edit-btn" data-artist="${this.escapeAttr(album.artist || '')}"
+                                onclick="event.stopPropagation(); app.showGenreDialog(this.dataset.artist)"
+                                title="Genre ändern" aria-label="Genre ändern">✎</button>
                         <div class="album-info">
                             <div class="album-title">${this.escapeHtml(album.album || 'Unknown Album')}</div>
                             <div class="album-artist">${this.escapeHtml(album.artist || 'Unknown Artist')}</div>
-                            <span class="album-genre" data-artist="${this.escapeAttr(album.artist || '')}"
-                                  onclick="event.stopPropagation(); app.showGenreDialog(this.dataset.artist)"
-                                  title="Genre ändern">${this.escapeHtml(album.genre || 'Unknown')} ✎</span>
                         </div>
                     </div>
                 `;
