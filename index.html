@@ -7,9 +7,16 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.5.0 - GitHub Pages Edition
+        Record Shelf v1.5.1 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.5.1 (Genre-Zuordnung):
+        - Schreibweisen vereinheitlicht ("trip hop" = "trip-hop", "drum n bass" = "drum and bass")
+        - Keine Fehlgriffe mehr über Stichwörter ("New wave" → Rock statt Electronic, "Trip hop" ≠ Urban)
+        - Viele Genres zugeordnet, die vorher in "Other" landeten (Chanson, Fado, Disco, Gospel …)
+        - Schreibweise: R&B, UK garage, IDM; Industrial → Experimental
+        - Echte Genres (Gospel, New age, Mathcore …) nicht mehr auf der Blacklist
+
         NEU in v1.5.0 (Optik):
         - Untertitel unter dem Logo entfernt, Zufallsalben-Knopf mit Shuffle-Symbol
         - Schreibschrift nur noch im Logo, Kategorien in Inter
@@ -1267,7 +1274,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.5.0';
+        const APP_VERSION = '1.5.1';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1277,10 +1284,12 @@
                 this.albums = [];
                 this.genreCache = new Map();
                 this.genreOverrides = {}; // artist (lowercase) -> genre chosen by hand
-                this.categoryOverrides = {}; // genre (lowercase) -> main category chosen by hand
+                this.categoryOverrides = {}; // normalized genre -> main category chosen by hand
                 this.genreMapping = this.createGenreMapping();
                 this.genreColors = this.createGenreColors();
                 this.mainCategories = this.createMainCategories();
+                this.categoryIndex = this.buildCategoryIndex();
+                this.genreMergeIndex = this.buildGenreMergeIndex();
                 
                 // Default category order
                 this.categoryOrder = [
@@ -1295,107 +1304,176 @@
                 ];
             }
 
+            // ---------------------------------------------------------------
+            // Genre-Logik
+            // Alle Vergleiche laufen über normalizeGenre(): klein geschrieben,
+            // Bindestriche/Unterstriche als Leerzeichen, Schreibvarianten
+            // vereinheitlicht ("trip-hop" = "trip hop", "drum n bass" = "drum and bass").
+            // ---------------------------------------------------------------
+
+            normalizeGenre(text) {
+                const g = (text || '').toLowerCase().trim()
+                    .replace(/[-_/]+/g, ' ')
+                    .replace(/\s+/g, ' ');
+                const variants = {
+                    'rnb': 'r&b', 'r and b': 'r&b', 'r n b': 'r&b',
+                    'hiphop': 'hip hop', 'triphop': 'trip hop',
+                    'synthpop': 'synth pop', 'electropop': 'electro pop',
+                    'postpunk': 'post punk', 'postrock': 'post rock',
+                    'drum n bass': 'drum and bass', 'drum & bass': 'drum and bass', 'dnb': 'drum and bass',
+                    'avantgarde': 'avant garde', 'neoclassical': 'neo classical', 'neosoul': 'neo soul',
+                    'lofi': 'lo fi', 'kpop': 'k pop', 'jpop': 'j pop',
+                    'darkwave': 'dark wave', 'coldwave': 'cold wave', 'newwave': 'new wave',
+                    'ndw': 'neue deutsche welle', 'world music': 'world'
+                };
+                return variants[g] || g;
+            }
+
+            // How a genre is shown; everything not listed gets a capital first letter
+            displayGenre(text) {
+                const key = this.normalizeGenre(text);
+                const names = {
+                    'r&b': 'R&B', 'contemporary r&b': 'Contemporary R&B', 'uk garage': 'UK garage',
+                    'idm': 'IDM', 'edm': 'EDM', 'ebm': 'EBM', 'k pop': 'K-Pop', 'j pop': 'J-Pop',
+                    'post punk': 'Post-punk', 'post rock': 'Post-rock', 'post metal': 'Post-metal',
+                    'post hardcore': 'Post-hardcore', 'post punk revival': 'Post-punk revival',
+                    'trip hop': 'Trip-hop', 'hip hop': 'Hip-hop', 'lo fi': 'Lo-fi', 'lo fi hip hop': 'Lo-fi hip-hop',
+                    'synth pop': 'Synth-pop', 'electro pop': 'Electropop', 'dance pop': 'Dance-pop',
+                    'neo soul': 'Neo-soul', 'avant garde': 'Avant-garde', 'neo psychedelia': 'Neo-psychedelia',
+                    'neo classical': 'Neoclassical', 'singer songwriter': 'Singer-songwriter',
+                    'neue deutsche welle': 'Neue Deutsche Welle', 'neue deutsche härte': 'Neue Deutsche Härte',
+                    'nu metal': 'Nu metal', 'alt country': 'Alt-country', 'mpb': 'MPB'
+                };
+                if (names[key]) return names[key];
+                return key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Unknown';
+            }
+
             createMainCategories() {
                 return {
                     '🤘 Metal': {
-                        genres: ['metal', 'heavy metal', 'death metal', 'black metal', 'thrash metal', 
+                        genres: ['metal', 'heavy metal', 'death metal', 'black metal', 'thrash metal',
                                 'doom metal', 'progressive metal', 'power metal', 'metalcore', 'nu metal',
-                                'breakcore', 'cybergrind', 'deathcore', 'grindcore', 'screamo',
-                                'drone', 'drone metal'],
+                                'deathcore', 'grindcore', 'cybergrind', 'drone', 'drone metal', 'drone doom',
+                                'sludge metal', 'stoner metal', 'speed metal', 'industrial metal', 'folk metal',
+                                'post metal', 'gothic metal', 'symphonic metal', 'groove metal',
+                                'neue deutsche härte'],
                         color: 'rgba(80, 80, 80, 0.7)',
                         order: 1
                     },
                     '🎸 Rock & Alternative': {
-                        genres: ['rock', 'punk', 'alternative', 'alternative rock', 'indie', 'indie rock', 
-                                'grunge', 'shoegaze', 'post-punk', 'post-rock', 'noise rock', 'lo-fi', 'emo',
-                                'hamburger schule', 'post-hardcore', 'sludge', 'slowcore', 'riot grrrl'],
+                        genres: ['rock', 'punk', 'alternative', 'alternative rock', 'indie', 'indie rock',
+                                'grunge', 'shoegaze', 'post punk', 'post rock', 'noise rock', 'lo fi', 'emo',
+                                'screamo', 'hamburger schule', 'post hardcore', 'hardcore', 'hardcore punk',
+                                'sludge', 'slowcore', 'riot grrrl', 'new wave', 'no wave', 'post punk revival',
+                                'britpop', 'noise pop', 'garage rock', 'psychedelic rock', 'neo psychedelia',
+                                'krautrock', 'math rock', 'stoner rock', 'hard rock', 'classic rock', 'art rock',
+                                'progressive rock', 'glam rock', 'pop punk', 'ska punk', 'gothic rock',
+                                'gothic', 'deathrock'],
                         color: 'rgba(212, 132, 95, 0.5)',
                         order: 2
                     },
                     '🔮 Experimental': {
-                        genres: ['experimental', 'avant-garde', 'noise', 'sound art', 'psychedelic'],
+                        genres: ['experimental', 'avant garde', 'noise', 'sound art', 'psychedelic',
+                                'industrial', 'musique concrete', 'free improvisation', 'field recordings',
+                                'dark ambient', 'outsider'],
                         color: 'rgba(120, 120, 130, 0.5)',
                         order: 3
                     },
                     '🎧 Electronic & Synth': {
-                        genres: ['electronic', 'synth-pop', 'synthpop', 'techno', 'house', 'ambient', 
-                                'edm', 'electronica', 'idm', 'downtempo', 'trip-hop', 'drum and bass', 
-                                'dubstep', 'trance', 'synthwave', 'electro', 'industrial', 'glitch', 'vaporwave',
-                                'minimal synth', 'minimal', 'electroclash'],
+                        genres: ['electronic', 'electronica', 'synth pop', 'techno', 'house', 'ambient',
+                                'edm', 'idm', 'downtempo', 'trip hop', 'drum and bass', 'jungle', 'dubstep',
+                                'trance', 'synthwave', 'electro', 'glitch', 'vaporwave', 'minimal synth',
+                                'minimal', 'electroclash', 'dark wave', 'cold wave', 'breakcore', 'nightcore',
+                                'uk garage', 'future garage', 'chillout', 'dance', 'disco', 'italo disco',
+                                'indietronica', 'deconstructed club', 'footwork', 'leftfield', 'big beat',
+                                'acid house', 'deep house', 'tech house', 'minimal techno', 'ebm'],
                         color: 'rgba(120, 150, 180, 0.5)',
                         order: 4
                     },
                     '🎤 Pop': {
-                        genres: ['pop', 'indie pop', 'dream pop', 'art pop', 'electropop', 'dance-pop', 
-                                'pop rock', 'power pop', 'chamber pop', 'baroque pop', 'singer-songwriter',
-                                'liedermacher'],
+                        genres: ['pop', 'indie pop', 'dream pop', 'art pop', 'electro pop', 'dance pop',
+                                'pop rock', 'power pop', 'chamber pop', 'baroque pop', 'singer songwriter',
+                                'liedermacher', 'chanson', 'schlager', 'neue deutsche welle', 'k pop', 'j pop',
+                                'city pop', 'hyperpop'],
                         color: 'rgba(198, 120, 141, 0.5)',
                         order: 5
                     },
                     '🎵 Urban': {
-                        genres: ['hip hop', 'r&b', 'rap', 'trap', 'soul', 'neo-soul',
-                                'experimental hip hop', 'instrumental hip-hop'],
+                        genres: ['hip hop', 'rap', 'r&b', 'contemporary r&b', 'trap', 'soul', 'neo soul',
+                                'experimental hip hop', 'instrumental hip hop', 'abstract hip hop', 'grime',
+                                'deutschrap', 'german hip hop', 'cloud rap', 'gangsta rap', 'conscious hip hop',
+                                'east coast rap', 'west coast rap', 'underground hip hop', 'lo fi hip hop',
+                                'jazz rap', 'motown'],
                         color: 'rgba(180, 140, 120, 0.5)',
                         order: 6
                     },
                     '🎺 Traditional & Roots': {
-                        genres: ['jazz', 'blues', 'folk', 'indie folk', 'country', 'classical', 'reggae', 'funk',
-                                'acoustic', 'piano', 'trumpet'],
+                        genres: ['jazz', 'blues', 'folk', 'indie folk', 'freak folk', 'neofolk', 'country',
+                                'alt country', 'outlaw country', 'americana', 'bluegrass', 'gospel',
+                                'classical', 'modern classical', 'contemporary classical', 'neo classical',
+                                'minimalism', 'opera', 'baroque', 'soundtrack', 'reggae', 'roots reggae',
+                                'dub', 'ska', 'dancehall', 'funk', 'acoustic', 'piano', 'trumpet',
+                                'bebop', 'free jazz', 'hard bop', 'cool jazz', 'modal jazz', 'spiritual jazz',
+                                'avant garde jazz', 'jazz fusion', 'fusion', 'swing', 'big band', 'delta blues'],
                         color: 'rgba(200, 160, 100, 0.5)',
                         order: 7
                     },
                     '🌍 World': {
-                        genres: ['world', 'afrobeat', 'latin', 'bossa nova', 'flamenco', 'throat singing',
-                                'africa', 'balkan', 'first nations', 'germany'],
+                        genres: ['world', 'afrobeat', 'afrobeats', 'african', 'africa', 'latin', 'bossa nova',
+                                'flamenco', 'fado', 'samba', 'mpb', 'cumbia', 'tango', 'reggaeton', 'klezmer',
+                                'celtic', 'balkan', 'throat singing', 'desert blues', 'highlife', 'tuareg',
+                                'first nations', 'germany'],
                         color: 'rgba(130, 150, 140, 0.5)',
                         order: 8
                     }
                 };
             }
 
+            // normalized genre -> category (first category wins)
+            buildCategoryIndex() {
+                const index = new Map();
+                Object.entries(this.mainCategories)
+                    .sort((a, b) => a[1].order - b[1].order)
+                    .forEach(([category, data]) => data.genres.forEach(g => {
+                        const key = this.normalizeGenre(g);
+                        if (!index.has(key)) index.set(key, category);
+                    }));
+                return index;
+            }
+
             getMainCategory(genre, useOverrides = true) {
-                const lowerGenre = genre.toLowerCase();
+                const key = this.normalizeGenre(genre);
 
                 // Category chosen by hand wins
-                if (useOverrides && this.categoryOverrides[lowerGenre]) {
-                    return this.categoryOverrides[lowerGenre];
+                if (useOverrides && this.categoryOverrides[key]) {
+                    return this.categoryOverrides[key];
                 }
-                
-                // Sort categories by order before checking
-                const sortedCategories = Object.entries(this.mainCategories)
-                    .sort((a, b) => (a[1].order || 999) - (b[1].order || 999));
-                
-                // Only use exact match - no substring matching
-                // This prevents false matches like "alternative" matching with "experimental"
-                for (const [category, data] of sortedCategories) {
-                    if (data.genres.some(g => g === lowerGenre)) {
-                        return category;
-                    }
+
+                if (this.categoryIndex.has(key)) {
+                    return this.categoryIndex.get(key);
                 }
-                
-                // Fallback: Smart keyword matching for common suffixes/prefixes
-                // Only match if genre ENDS with or CONTAINS the keyword as a whole word
-                const keywordMappings = {
-                    '🤘 Metal': ['metal'],
-                    '🎸 Rock & Alternative': ['rock', 'punk', 'core'], // hardcore, metalcore, etc.
-                    '🎧 Electronic & Synth': ['techno', 'house', 'trance', 'wave'],
-                    '🎤 Pop': ['pop'],
-                    '🎵 Urban': ['hop', 'rap', 'r&b'],
-                    '🎺 Traditional & Roots': ['jazz', 'blues', 'folk', 'country'],
-                    '🌍 World': ['world', 'latin', 'african']
-                };
-                
-                for (const [category, keywords] of Object.entries(keywordMappings)) {
-                    for (const keyword of keywords) {
-                        // Check if genre ends with keyword or contains it as whole word
-                        if (lowerGenre.endsWith(keyword) || 
-                            lowerGenre.includes(' ' + keyword) || 
-                            lowerGenre.includes(keyword + ' ')) {
-                            return category;
-                        }
-                    }
+
+                // Fallback: whole words, or word endings for longer keywords
+                // ("krautrock", "tech house"). Short words like "pop" and "rap"
+                // only match as whole words.
+                const keywordMappings = [
+                    ['🤘 Metal', ['metal']],
+                    ['🎸 Rock & Alternative', ['rock', 'punk', 'grunge', 'shoegaze']],
+                    ['🔮 Experimental', ['experimental', 'avant', 'noise']],
+                    ['🎧 Electronic & Synth', ['techno', 'house', 'trance', 'electronic', 'electronica', 'synth']],
+                    ['🎤 Pop', ['pop']],
+                    ['🎵 Urban', ['rap', 'hip', 'r&b', 'soul']],
+                    ['🎺 Traditional & Roots', ['jazz', 'blues', 'folk', 'country', 'classical', 'gospel']],
+                    ['🌍 World', ['world', 'latin', 'african', 'afro']]
+                ];
+                const words = key.split(' ');
+                for (const [category, keywords] of keywordMappings) {
+                    const hit = words.some(word => keywords.some(k =>
+                        word === k || (k.length >= 4 && word.endsWith(k))
+                    ));
+                    if (hit) return category;
                 }
-                
+
                 return '🎵 Other';
             }
 
@@ -1440,78 +1518,54 @@
             }
 
             createGenreMapping() {
+                // canonical genre -> variants that are merged into it
                 return {
-                    // Rock and variants (excluding indie/alternative rock and post-rock - those stay separate)
-                    'rock': ['rock', 'classic rock', 'hard rock', 'soft rock', 
+                    'rock': ['rock', 'classic rock', 'hard rock', 'soft rock',
                              'garage rock', 'psychedelic rock', 'progressive rock', 'art rock',
                              'folk rock', 'blues rock', 'southern rock', 'glam rock', 'arena rock'],
-                    
-                    // Pop
-                    'pop': ['pop', 'indie pop', 'dream pop', 'art pop', 'electropop', 
-                            'dance-pop', 'pop rock', 'power pop', 'chamber pop', 'baroque pop'],
-                    
-                    // Electronic
-                    'electronic': ['electronic', 'techno', 'house', 'ambient', 'edm', 'electronica', 
-                                   'idm', 'downtempo', 'trip-hop', 'drum and bass', 'dubstep', 'trance',
-                                   'synthwave', 'electro', 'industrial', 'glitch'],
-                    
-                    // Hip Hop
-                    'hip hop': ['hip hop', 'hip-hop', 'rap', 'trap', 'conscious hip hop', 'gangsta rap',
+                    'pop': ['pop', 'indie pop', 'dream pop', 'art pop', 'electropop',
+                            'dance pop', 'pop rock', 'power pop', 'chamber pop', 'baroque pop'],
+                    'electronic': ['electronic', 'techno', 'house', 'ambient', 'edm', 'electronica',
+                                   'idm', 'downtempo', 'trip hop', 'drum and bass', 'dubstep', 'trance',
+                                   'synthwave', 'electro', 'glitch'],
+                    'hip hop': ['hip hop', 'rap', 'trap', 'conscious hip hop', 'gangsta rap',
                                 'east coast hip hop', 'west coast hip hop', 'underground hip hop'],
-                    
-                    // Jazz
                     'jazz': ['jazz', 'bebop', 'cool jazz', 'free jazz', 'hard bop', 'modal jazz',
-                             'jazz fusion', 'smooth jazz', 'contemporary jazz', 'avant-garde jazz'],
-                    
-                    // Folk
-                    'folk': ['folk', 'indie folk', 'contemporary folk', 'freak folk', 'neo-folk', 'anti-folk', 'americana'],
-                    
-                    // R&B and Soul
-                    'r&b': ['r&b', 'rnb', 'soul', 'neo-soul', 'contemporary r&b', 'motown'],
-                    
-                    // Punk (excluding post-punk - that's more alternative)
+                             'jazz fusion', 'smooth jazz', 'contemporary jazz', 'avant garde jazz'],
+                    'folk': ['folk', 'indie folk', 'contemporary folk', 'freak folk', 'neo folk', 'anti folk', 'americana'],
+                    'r&b': ['r&b', 'soul', 'neo soul', 'contemporary r&b', 'motown'],
                     'punk': ['punk', 'punk rock', 'hardcore punk', 'pop punk',
-                             'ska punk', 'crust punk', 'anarcho-punk'],
-                    
-                    // Country
-                    'country': ['country', 'country rock', 'alt-country', 'outlaw country'],
-                    
-                    // Classical
+                             'ska punk', 'crust punk', 'anarcho punk'],
+                    'country': ['country', 'country rock', 'alt country', 'outlaw country'],
                     'classical': ['classical', 'baroque', 'romantic', 'contemporary classical',
                                   'minimalism', 'opera', 'orchestral'],
-                    
-                    // Reggae
                     'reggae': ['reggae', 'dub', 'dancehall', 'roots reggae', 'ska'],
-                    
-                    // Blues
                     'blues': ['blues', 'delta blues', 'chicago blues', 'electric blues'],
-                    
-                    // World
-                    'world': ['world', 'world music', 'afrobeat', 'latin', 'bossa nova', 'flamenco'],
-                    
-                    // Experimental
-                    'experimental': ['experimental', 'avant-garde', 'noise', 'sound art']
-                    
-                    // Metal genres kept separate: heavy metal, death metal, black metal, etc.
-                    // Alternative/Indie genres kept separate: indie, indie rock, alternative rock, shoegaze, grunge, post-punk, etc.
+                    'world': ['world', 'afrobeat', 'latin', 'bossa nova', 'flamenco'],
+                    'experimental': ['experimental', 'avant garde', 'noise', 'sound art']
                 };
+            }
+
+            // variant -> canonical, built once
+            buildGenreMergeIndex() {
+                const index = new Map();
+                Object.entries(this.genreMapping).forEach(([canonical, variants]) =>
+                    variants.forEach(v => index.set(this.normalizeGenre(v), this.normalizeGenre(canonical))));
+                return index;
             }
 
             mapGenre(originalGenre) {
                 if (!originalGenre) return 'Unknown';
-                
-                const lowerGenre = originalGenre.toLowerCase().trim();
-                
-                // Only use exact match - no substring matching
-                // This prevents "post-punk" from being mapped to "punk"
-                for (const [mainGenre, subGenres] of Object.entries(this.genreMapping)) {
-                    if (subGenres.some(sub => sub === lowerGenre)) {
-                        return mainGenre.charAt(0).toUpperCase() + mainGenre.slice(1);
-                    }
-                }
-                
-                // If no exact match found, return original but capitalize
-                return originalGenre.charAt(0).toUpperCase() + originalGenre.slice(1);
+                const key = this.normalizeGenre(originalGenre);
+                return this.displayGenre(this.genreMergeIndex.get(key) || key);
+            }
+
+            normalizeCategoryOverrides(overrides) {
+                const result = {};
+                Object.entries(overrides || {}).forEach(([genre, category]) => {
+                    result[this.normalizeGenre(genre)] = category;
+                });
+                return result;
             }
 
             artistKey(artist) {
@@ -1592,7 +1646,7 @@
                                     this.categoryOrder = request.result.categoryOrder;
                                 }
                                 this.genreOverrides = request.result.genreOverrides || {};
-                                this.categoryOverrides = request.result.categoryOverrides || {};
+                                this.categoryOverrides = this.normalizeCategoryOverrides(request.result.categoryOverrides);
                                 resolve(request.result.albums || null);
                             } else {
                                 resolve(null);
@@ -2578,7 +2632,7 @@ Abbey Road,The Beatles</code>
                         this.albums = backup.albums;
                         // Backups before v1.4.7 have no overrides: keep the current ones
                         if (backup.genreOverrides) this.genreOverrides = backup.genreOverrides;
-                        if (backup.categoryOverrides) this.categoryOverrides = backup.categoryOverrides;
+                        if (backup.categoryOverrides) this.categoryOverrides = this.normalizeCategoryOverrides(backup.categoryOverrides);
                         this.applyGenreOverrides(this.albums);
                         
                         // Save to IndexedDB
@@ -2727,10 +2781,9 @@ Abbey Road,The Beatles</code>
                             'female', 'male', 'female vocalists', 'male vocalists',
                             'female vocalist', 'male vocalist',
                             // Vague descriptors
-                            'melancholic', 'melancholy', 'chill', 'atmospheric', 'cello', 'chillwave',
-                            'cumbia', 'cybergrind', 'dischord', 'frenchcore', 'gospel', 'guitar',
-                            'horrorcore', 'instrumental', 'mathcore', 'neocrust', 'outsider', 'touhou',
-                            'bubblegum bass', 'political', 'new age', 'united states'
+                            'melancholic', 'melancholy', 'chill', 'atmospheric', 'cello',
+                            'dischord', 'guitar', 'instrumental', 'outsider', 'touhou',
+                            'political', 'united states'
                         ];
                         
                         // Find first tag that's not in blacklist
@@ -2850,7 +2903,7 @@ Abbey Road,The Beatles</code>
                 };
                 const updateCategory = () => {
                     const genre = chosenGenre();
-                    categorySelect.value = this.categoryOverrides[genre.toLowerCase()] || 'auto';
+                    categorySelect.value = this.categoryOverrides[this.normalizeGenre(genre)] || 'auto';
                     updateHint();
                 };
                 const updateHint = () => {
@@ -2889,8 +2942,8 @@ Abbey Road,The Beatles</code>
                 if (genre) {
                     // Only pin the artist's genre if it actually changes
                     if (genre !== currentGenre) this.genreOverrides[key] = genre;
-                    if (category === 'auto') delete this.categoryOverrides[genre.toLowerCase()];
-                    else if (category) this.categoryOverrides[genre.toLowerCase()] = category;
+                    if (category === 'auto') delete this.categoryOverrides[this.normalizeGenre(genre)];
+                    else if (category) this.categoryOverrides[this.normalizeGenre(genre)] = category;
                 } else {
                     // Back to the Last.fm genre
                     delete this.genreOverrides[key];
