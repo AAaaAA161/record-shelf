@@ -7,9 +7,15 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.6.0 - GitHub Pages Edition
+        Record Shelf v1.7.0 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.7.0 (Regale):
+        - Jedes Genre ist eine waagrecht wischbare Reihe von Covern; "Alle" zeigt sie als Raster
+        - Kategorien und Genres einklappbar, Zustand wird im Browser gemerkt
+        - Kategorie-Leiste oben bleibt beim Scrollen sichtbar und springt zur Kategorie
+        - Zufallsknöpfe pro Kategorie und Genre bleiben
+
         NEU in v1.6.0 (Genres):
         - Feinere Genres: Trip-hop, Ambient, House, IDM, Dream pop … bleiben eigene Genres
         - Klügere Tag-Wahl: erstes der Top-6-Tags, das ein bekanntes Genre ist
@@ -871,146 +877,153 @@
             transform: rotate(180deg) scale(0.95);
         }
 
-        .main-category-content {
-            /* Always visible - no accordion behavior */
+        /* Category bar (sticky) */
+        .category-nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding: 10px 0;
+            margin-bottom: 8px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
-        /* Genre Sections */
-        .genre-section {
-            margin-bottom: 16px;
+        .category-nav::-webkit-scrollbar {
+            display: none;
         }
 
-        .genre-header {
-            background: var(--bg-secondary);
-            padding: 16px 20px;
-            border-radius: 12px;
+        .category-nav button {
+            flex: 0 0 auto;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 999px;
+            padding: 6px 14px;
             cursor: pointer;
-            transition: all 0.2s ease;
+        }
+
+        .category-nav button:hover {
+            color: var(--text-primary);
+            border-color: var(--accent);
+        }
+
+        .main-category-section {
+            scroll-margin-top: 64px;
+        }
+
+        .main-category-header {
+            cursor: pointer;
+        }
+
+        .collapse-icon {
+            display: inline-block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: transform 0.2s ease;
+        }
+
+        .collapsed > .main-category-header .collapse-icon,
+        .collapsed > .shelf-header .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .main-category-section.collapsed {
+            margin-bottom: 8px;
+        }
+
+        .main-category-section.collapsed > .main-category-content,
+        .shelf.collapsed > .shelf-row {
+            display: none;
+        }
+
+        /* Genre shelves */
+        .shelf {
+            margin-bottom: 22px;
+        }
+
+        .shelf-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 10px;
+            padding: 4px 0 10px;
+            cursor: pointer;
             user-select: none;
-            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
-        .genre-header:hover {
-            background: var(--bg-card);
-        }
-
-        .genre-header.active {
-            background: var(--bg-card);
-            border-bottom-left-radius: 0;
-            border-bottom-right-radius: 0;
-        }
-
-        .genre-emoji {
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .shelf-header .genre-title {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .genre-title {
             font-family: 'Inter', sans-serif;
-            font-size: 1.1rem;
-            font-weight: 400;
+            font-size: 1rem;
+            font-weight: 500;
         }
 
         .genre-count {
             background: transparent;
-            padding: 3px 8px;
+            padding: 2px 8px;
             border-radius: 10px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 500;
             color: var(--text-secondary);
             border: 1px solid rgba(255, 255, 255, 0.15);
+            white-space: nowrap;
         }
 
-        .genre-preview-covers {
+        .shelf-all-btn {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            background: transparent;
+            border: none;
+            padding: 6px 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .shelf-all-btn:hover {
+            color: var(--accent);
+        }
+
+        .shelf-row {
             display: flex;
-            gap: 6px;
+            gap: 14px;
+            overflow-x: auto;
+            scroll-snap-type: x proximity;
+            scrollbar-width: none;
+            padding-bottom: 4px;
         }
 
-        .genre-cover-preview {
-            width: 36px;
-            height: 36px;
-            border-radius: 6px;
-            object-fit: cover;
-            border: 2px solid var(--bg-primary);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        .shelf-row::-webkit-scrollbar {
+            display: none;
         }
 
-        @media (max-width: 768px) {
-            .genre-preview-covers {
-                display: flex;
-                gap: 4px;
-            }
-            
-            /* Hide 3rd cover on mobile, show only 2 */
-            .genre-cover-preview:nth-child(3) {
-                display: none;
-            }
-            
-            /* Make covers slightly smaller on mobile */
-            .genre-cover-preview {
-                width: 28px;
-                height: 28px;
-                border-radius: 4px;
-            }
-            
-            .genre-emoji {
-                font-size: 1.2rem;
-            }
-            
-            .genre-title {
-                font-size: 1.1rem;
-            }
+        .shelf-row .album-card {
+            flex: 0 0 160px;
+            scroll-snap-align: start;
         }
 
-        .genre-icon {
-            transition: transform 0.3s ease;
-            font-size: 0.9rem;
-            opacity: 0.7;
-        }
-
-        .genre-header.active .genre-icon {
-            transform: rotate(180deg);
-        }
-
-        .genre-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.4s ease;
-        }
-
-        .genre-content.active {
-            max-height: 10000px;
-        }
-
-        /* Albums Grid */
-        .albums-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 20px;
-            padding: 24px;
-            background: var(--bg-secondary);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-top: none;
-            border-bottom-left-radius: 14px;
-            border-bottom-right-radius: 14px;
+        /* "Alle": the same row wraps into a grid */
+        .shelf.grid .shelf-row {
+            flex-wrap: wrap;
+            overflow-x: visible;
         }
 
         @media (max-width: 768px) {
-            .albums-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 18px 12px;
-                padding: 16px;
-            }
-
-            /* Compact Accordions on Mobile */
             .main-category-header {
                 padding: 12px 0;
-                margin-bottom: 12px;
+                margin-bottom: 8px;
             }
 
             .main-category-title {
@@ -1020,31 +1033,16 @@
                 text-overflow: ellipsis;
             }
 
-            .genre-section {
-                margin-bottom: 10px;
+            .shelf-row {
+                gap: 10px;
             }
 
-            .genre-header {
-                padding: 12px 16px;
+            .shelf-row .album-card {
+                flex-basis: 118px;
             }
 
-            .genre-emoji {
-                font-size: 1.2rem;
-            }
-
-            .genre-title {
-                font-size: 0.9rem;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                flex: 1;
-                margin: 0 10px;
-            }
-
-            .genre-count {
-                font-size: 0.75rem;
-                padding: 2px 6px;
-                white-space: nowrap;
+            .shelf.grid .shelf-row .album-card {
+                flex-basis: calc(33.333% - 7px);
             }
         }
 
@@ -1280,7 +1278,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.6.0';
+        const APP_VERSION = '1.7.0';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1293,7 +1291,6 @@
                 this.genreOverrides = {}; // artist (lowercase) -> genre chosen by hand
                 this.categoryOverrides = {}; // normalized genre -> main category chosen by hand
                 this.genreMapping = this.createGenreMapping();
-                this.genreColors = this.createGenreColors();
                 this.mainCategories = this.createMainCategories();
                 this.categoryIndex = this.buildCategoryIndex();
                 this.genreMergeIndex = this.buildGenreMergeIndex();
@@ -1482,46 +1479,6 @@
                 }
 
                 return '🎵 Other';
-            }
-
-            createGenreColors() {
-                return {
-                    'rock': 'rgba(212, 132, 95, 0.4)',
-                    'pop': 'rgba(198, 120, 141, 0.4)',
-                    'synth-pop': 'rgba(168, 120, 180, 0.4)',
-                    'synthpop': 'rgba(168, 120, 180, 0.4)',
-                    'electronic': 'rgba(120, 150, 180, 0.4)',
-                    'hip hop': 'rgba(180, 140, 120, 0.4)',
-                    'jazz': 'rgba(200, 160, 100, 0.4)',
-                    'folk': 'rgba(140, 160, 120, 0.4)',
-                    'r&b': 'rgba(190, 130, 110, 0.4)',
-                    'punk': 'rgba(180, 100, 90, 0.4)',
-                    'country': 'rgba(170, 140, 100, 0.4)',
-                    'classical': 'rgba(150, 130, 160, 0.4)',
-                    'reggae': 'rgba(160, 150, 90, 0.4)',
-                    'blues': 'rgba(100, 130, 150, 0.4)',
-                    'world': 'rgba(130, 150, 140, 0.4)',
-                    'experimental': 'rgba(120, 120, 130, 0.4)',
-                    'alternative': 'rgba(140, 150, 150, 0.4)',
-                    'indie': 'rgba(150, 160, 140, 0.4)',
-                    // All metal genres = dark warm
-                    'metal': 'rgba(80, 80, 80, 0.6)',
-                    'heavy metal': 'rgba(80, 80, 80, 0.6)',
-                    'death metal': 'rgba(70, 70, 70, 0.6)',
-                    'black metal': 'rgba(60, 60, 60, 0.6)',
-                    'thrash metal': 'rgba(90, 80, 70, 0.6)',
-                    'doom metal': 'rgba(75, 75, 75, 0.6)',
-                    'progressive metal': 'rgba(85, 85, 85, 0.6)',
-                    'power metal': 'rgba(90, 85, 80, 0.6)',
-                    'metalcore': 'rgba(80, 75, 75, 0.6)',
-                    'nu metal': 'rgba(85, 80, 75, 0.6)',
-                    'default': 'rgba(212, 132, 95, 0.4)'
-                };
-            }
-
-            getGenreColor(genre) {
-                const lowerGenre = genre.toLowerCase();
-                return this.genreColors[lowerGenre] || this.genreColors['default'];
             }
 
             createGenreMapping() {
@@ -2384,79 +2341,69 @@ Abbey Road,The Beatles</code>
                     </div>
                 `;
 
-                // Create main category sections
-                let globalGenreIndex = 0;
+                // Sticky category bar
+                html += `
+                    <nav class="category-nav" aria-label="Kategorien">
+                        ${sortedCategories.map((category, catIndex) =>
+                            `<button onclick="app.jumpToCategory(${catIndex})">${this.escapeHtml(category)}</button>`
+                        ).join('')}
+                    </nav>
+                `;
+
+                // Categories (collapsible), each genre a shelf (collapsible)
+                const ui = this.loadUiState();
                 sortedCategories.forEach((mainCategory, catIndex) => {
                     const genres = genresByCategory[mainCategory];
                     const sortedGenres = Object.keys(genres).sort();
-                    
-                    // Count total albums in this category
                     const totalAlbums = sortedGenres.reduce((sum, genre) => sum + genres[genre].length, 0);
-                    
-                    const categoryColor = this.mainCategories[mainCategory]?.color || 'rgba(107, 207, 143, 0.4)';
-                    
+                    const categoryCollapsed = ui.categories.includes(mainCategory);
+
                     html += `
-                        <div class="main-category-section">
-                            <div class="main-category-header">
-                                <div style="display: flex; align-items: center; gap: 12px;">
+                        <section class="main-category-section ${categoryCollapsed ? 'collapsed' : ''}" id="category-${catIndex}" data-category="${this.escapeAttr(mainCategory)}">
+                            <div class="main-category-header" onclick="app.toggleCategory(this.parentElement)">
+                                <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+                                    <span class="collapse-icon">▼</span>
                                     <span class="main-category-title">${mainCategory}</span>
                                     <span class="main-category-count">${totalAlbums}</span>
                                 </div>
-                                <button class="shuffle-btn" onclick="app.shuffleCategory('${mainCategory.replace(/'/g, "\\'")}')" title="Zufälliges Album abspielen">
+                                <button class="shuffle-btn" onclick="event.stopPropagation(); app.shuffleCategory('${mainCategory.replace(/'/g, "\\'")}')" title="Zufälliges Album abspielen">
                                     ↻
                                 </button>
                             </div>
                             <div class="main-category-content">
                     `;
-                    
-                    // Create genre accordions within category
-                    sortedGenres.forEach((genre, genreIndex) => {
+
+                    sortedGenres.forEach(genre => {
                         const albums = genres[genre];
-                        const genreColor = this.getGenreColor(genre);
-                        
-                        // Get first 3 album covers for preview
-                        const previewCovers = albums.slice(0, 3).map(album => {
-                            if (album.coverUrl) {
-                                return `<img src="${album.coverUrl}" alt="${this.escapeHtml(album.album)}" class="genre-cover-preview">`;
-                            }
-                            return '';
-                        }).filter(Boolean).join('');
-                        
-                        // Show shuffle button only if more than 3 albums
-                        const shuffleBtn = albums.length > 3 
-                            ? `<button class="genre-shuffle-btn" onclick="event.stopPropagation(); app.shuffleGenre('${this.escapeHtml(genre).replace(/'/g, "\\'")}', ${globalGenreIndex})" title="Zufälliges Album abspielen">↻</button>`
+                        const shelfCollapsed = ui.genres.includes(genre);
+
+                        // Shuffle button only if more than 3 albums
+                        const shuffleBtn = albums.length > 3
+                            ? `<button class="genre-shuffle-btn" onclick="event.stopPropagation(); app.shuffleGenre('${this.escapeHtml(genre).replace(/'/g, "\\'")}')" title="Zufälliges Album abspielen">↻</button>`
                             : '';
-                        
+                        const allBtn = albums.length > 3
+                            ? `<button class="shelf-all-btn" onclick="event.stopPropagation(); app.toggleShelfGrid(this)">Alle</button>`
+                            : '';
+
                         html += `
-                            <div class="genre-section">
-                                <div class="genre-header" 
-                                     onclick="app.toggleGenre(${globalGenreIndex})" 
-                                     style="border-left: 3px solid ${genreColor}">
-                                    <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                                        <span class="genre-title">${this.escapeHtml(genre)}</span>
-                                        <span class="genre-count">${albums.length}</span>
-                                    </div>
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <div class="genre-preview-covers">
-                                            ${previewCovers}
-                                        </div>
-                                        ${shuffleBtn}
-                                        <span class="genre-icon">▼</span>
-                                    </div>
+                            <div class="shelf ${shelfCollapsed ? 'collapsed' : ''}" data-genre="${this.escapeAttr(genre)}">
+                                <div class="shelf-header" onclick="app.toggleShelf(this.parentElement)">
+                                    <span class="collapse-icon">▼</span>
+                                    <span class="genre-title">${this.escapeHtml(genre)}</span>
+                                    <span class="genre-count">${albums.length}</span>
+                                    ${allBtn}
+                                    ${shuffleBtn}
                                 </div>
-                                <div class="genre-content" id="genre-${globalGenreIndex}">
-                                    <div class="albums-grid">
-                                        ${albums.map((album, index) => this.renderAlbumCard(album, index)).join('')}
-                                    </div>
+                                <div class="shelf-row">
+                                    ${albums.map((album, index) => this.renderAlbumCard(album, index)).join('')}
                                 </div>
                             </div>
                         `;
-                        globalGenreIndex++;
                     });
-                    
+
                     html += `
                             </div>
-                        </div>
+                        </section>
                     `;
                 });
 
@@ -2532,12 +2479,53 @@ Abbey Road,The Beatles</code>
                 document.getElementById('randomAlbums').innerHTML = this.renderRandomAlbums();
             }
 
-            toggleGenre(index) {
-                const headers = document.querySelectorAll('.genre-header');
-                const contents = document.querySelectorAll('.genre-content');
-                
-                headers[index].classList.toggle('active');
-                contents[index].classList.toggle('active');
+            // Collapsed categories/genres are remembered in this browser only
+            loadUiState() {
+                try {
+                    const state = JSON.parse(localStorage.getItem('recordShelfCollapsed') || '{}');
+                    return { categories: state.categories || [], genres: state.genres || [] };
+                } catch (error) {
+                    return { categories: [], genres: [] };
+                }
+            }
+
+            saveUiState() {
+                const names = (selector, attr) => [...document.querySelectorAll(selector)].map(el => el.dataset[attr]);
+                try {
+                    localStorage.setItem('recordShelfCollapsed', JSON.stringify({
+                        categories: names('.main-category-section.collapsed', 'category'),
+                        genres: names('.shelf.collapsed', 'genre')
+                    }));
+                } catch (error) {
+                    // storage not available: state is simply not remembered
+                }
+            }
+
+            toggleCategory(section) {
+                section.classList.toggle('collapsed');
+                this.saveUiState();
+            }
+
+            toggleShelf(shelf) {
+                shelf.classList.toggle('collapsed');
+                this.saveUiState();
+            }
+
+            toggleShelfGrid(button) {
+                const shelf = button.closest('.shelf');
+                const grid = shelf.classList.toggle('grid');
+                shelf.classList.remove('collapsed');
+                button.textContent = grid ? 'Reihe' : 'Alle';
+            }
+
+            jumpToCategory(catIndex) {
+                const section = document.getElementById(`category-${catIndex}`);
+                if (!section) return;
+                if (section.classList.contains('collapsed')) {
+                    section.classList.remove('collapsed');
+                    this.saveUiState();
+                }
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
             shuffleCategory(mainCategory) {
@@ -2569,7 +2557,7 @@ Abbey Road,The Beatles</code>
                 this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
             }
 
-            shuffleGenre(genreName, genreIndex) {
+            shuffleGenre(genreName) {
                 // Find all albums with this exact genre
                 const genreAlbums = this.albums.filter(album => {
                     return album.genre && album.genre.toLowerCase() === genreName.toLowerCase();
@@ -3014,15 +3002,9 @@ Abbey Road,The Beatles</code>
                 });
                 await this.saveToIndexedDB();
 
-                // Re-render, keep open genres (plus the new one) and scroll position
-                const openGenres = new Set([...document.querySelectorAll('.genre-header.active .genre-title')]
-                    .map(el => el.textContent));
-                openGenres.add(genre);
+                // Re-render (collapsed state is remembered), keep scroll position
                 const scrollY = window.scrollY;
                 this.renderAlbumsByGenre();
-                document.querySelectorAll('.genre-title').forEach((el, index) => {
-                    if (openGenres.has(el.textContent)) this.toggleGenre(index);
-                });
                 window.scrollTo(0, scrollY);
                 this.showToast(`✅ ${artist}: ${genre} → ${this.getMainCategory(genre)}`);
             }
