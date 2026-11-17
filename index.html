@@ -12,7 +12,8 @@
         
         NEU in v1.7.0 (Regale):
         - Jedes Genre ist eine waagrecht wischbare Reihe von Covern; "Alle" zeigt sie als Raster
-        - Kategorien und Genres einklappbar, Zustand wird im Browser gemerkt
+        - Genres als abgesetzte Kästen wie im alten Layout
+        - Kategorien und Genres einklappbar, anfangs alles zu; Aufgeklapptes wird im Browser gemerkt
         - Kategorie-Leiste oben bleibt beim Scrollen sichtbar und springt zur Kategorie
         - Zufallsknöpfe pro Kategorie und Genre bleiben
 
@@ -944,16 +945,26 @@
 
         /* Genre shelves */
         .shelf {
-            margin-bottom: 22px;
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
         }
 
         .shelf-header {
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 4px 0 10px;
+            padding: 14px 16px;
             cursor: pointer;
             user-select: none;
+            transition: background 0.2s ease;
+        }
+
+        .shelf-header:hover,
+        .shelf:not(.collapsed) > .shelf-header {
+            background: var(--bg-card);
         }
 
         .shelf-header .genre-title {
@@ -1002,7 +1013,7 @@
             overflow-x: auto;
             scroll-snap-type: x proximity;
             scrollbar-width: none;
-            padding-bottom: 4px;
+            padding: 16px;
         }
 
         .shelf-row::-webkit-scrollbar {
@@ -1035,6 +1046,11 @@
 
             .shelf-row {
                 gap: 10px;
+                padding: 14px;
+            }
+
+            .shelf-header {
+                padding: 12px 14px;
             }
 
             .shelf-row .album-card {
@@ -2356,7 +2372,7 @@ Abbey Road,The Beatles</code>
                     const genres = genresByCategory[mainCategory];
                     const sortedGenres = Object.keys(genres).sort();
                     const totalAlbums = sortedGenres.reduce((sum, genre) => sum + genres[genre].length, 0);
-                    const categoryCollapsed = ui.categories.includes(mainCategory);
+                    const categoryCollapsed = !ui.categories.includes(mainCategory);
 
                     html += `
                         <section class="main-category-section ${categoryCollapsed ? 'collapsed' : ''}" id="category-${catIndex}" data-category="${this.escapeAttr(mainCategory)}">
@@ -2375,7 +2391,7 @@ Abbey Road,The Beatles</code>
 
                     sortedGenres.forEach(genre => {
                         const albums = genres[genre];
-                        const shelfCollapsed = ui.genres.includes(genre);
+                        const shelfCollapsed = !ui.genres.includes(genre);
 
                         // Shuffle button only if more than 3 albums
                         const shuffleBtn = albums.length > 3
@@ -2480,25 +2496,31 @@ Abbey Road,The Beatles</code>
             }
 
             // Collapsed categories/genres are remembered in this browser only
+            // Default: everything collapsed. Opened categories/genres are
+            // remembered in this browser only.
             loadUiState() {
                 try {
-                    const state = JSON.parse(localStorage.getItem('recordShelfCollapsed') || '{}');
+                    const state = JSON.parse(localStorage.getItem('recordShelfExpanded') || '{}');
                     return { categories: state.categories || [], genres: state.genres || [] };
                 } catch (error) {
                     return { categories: [], genres: [] };
                 }
             }
 
-            saveUiState() {
-                const names = (selector, attr) => [...document.querySelectorAll(selector)].map(el => el.dataset[attr]);
+            storeUiState(state) {
                 try {
-                    localStorage.setItem('recordShelfCollapsed', JSON.stringify({
-                        categories: names('.main-category-section.collapsed', 'category'),
-                        genres: names('.shelf.collapsed', 'genre')
-                    }));
+                    localStorage.setItem('recordShelfExpanded', JSON.stringify(state));
                 } catch (error) {
                     // storage not available: state is simply not remembered
                 }
+            }
+
+            saveUiState() {
+                const names = (selector, attr) => [...document.querySelectorAll(selector)].map(el => el.dataset[attr]);
+                this.storeUiState({
+                    categories: names('.main-category-section:not(.collapsed)', 'category'),
+                    genres: names('.shelf:not(.collapsed)', 'genre')
+                });
             }
 
             toggleCategory(section) {
@@ -3002,7 +3024,12 @@ Abbey Road,The Beatles</code>
                 });
                 await this.saveToIndexedDB();
 
-                // Re-render (collapsed state is remembered), keep scroll position
+                // Re-render; open the new genre and its category so the album stays visible
+                const ui = this.loadUiState();
+                this.storeUiState({
+                    categories: [...new Set([...ui.categories, this.getMainCategory(genre)])],
+                    genres: [...new Set([...ui.genres, genre])]
+                });
                 const scrollY = window.scrollY;
                 this.renderAlbumsByGenre();
                 window.scrollTo(0, scrollY);
