@@ -7,9 +7,15 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.4.9 - GitHub Pages Edition
+        Record Shelf v1.5.0 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.5.0 (Optik):
+        - Schreibschrift nur noch im Logo, Kategorien in Inter
+        - Cover ohne Kartenbox, flachere Flächen ohne Schatten
+        - Neutrale Platzhalter mit Initialen statt bunter Verläufe
+        - Zufallsalben mit unscharfem Cover als Hintergrund
+
         NEU in v1.4.9:
         - 🐛 Knöpfe oben ragen am Handy nicht mehr über den Rand
         - "CSV importieren" ist jetzt im Optionen-Menü
@@ -551,7 +557,8 @@
         }
 
         .settings-header h1 {
-            font-family: 'Pacifico', cursive;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
             font-size: 2rem;
             margin-bottom: 10px;
         }
@@ -684,7 +691,7 @@
             display: flex;
             justify-content: center;
             gap: 12px;
-            margin: 30px auto 40px;
+            margin: 0 auto;
             max-width: 600px;
             padding: 0 20px;
         }
@@ -724,14 +731,13 @@
 
         @media (max-width: 768px) {
             .random-albums-container {
-                gap: 6px;
+                gap: 10px;
                 padding: 0 16px;
-                max-width: 350px;
             }
 
             .random-album-item {
-                flex: 0 0 calc(33.333% - 4px);
-                max-width: 100px;
+                flex: 1 1 0;
+                min-width: 0;
             }
 
             .random-album-title {
@@ -747,7 +753,35 @@
         .random-reroll {
             display: flex;
             justify-content: center;
-            margin: -24px 0 30px;
+            margin-top: 16px;
+        }
+
+        .random-hero {
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+            max-width: 640px;
+            margin: 10px auto 36px;
+            padding: 28px 0 20px;
+            border-radius: 20px;
+        }
+
+        .random-hero::before {
+            content: '';
+            position: absolute;
+            inset: -40px;
+            background: var(--hero-bg) center / cover;
+            filter: blur(40px) saturate(1.4);
+            opacity: 0.5;
+            z-index: -2;
+        }
+
+        .random-hero::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(31, 33, 40, 0.1), var(--bg-primary));
+            z-index: -1;
         }
 
         /* Main Category Sections */
@@ -766,10 +800,10 @@
         }
 
         .main-category-title {
-            font-family: 'Pacifico', cursive;
-            font-size: 1.4rem;
-            font-weight: 400;
-            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
         }
 
         .main-category-count {
@@ -795,13 +829,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
         .shuffle-btn:hover {
             background: var(--bg-card);
             transform: rotate(180deg);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
         .shuffle-btn:active {
@@ -854,12 +886,11 @@
             justify-content: space-between;
             align-items: center;
             user-select: none;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .genre-header:hover {
             background: var(--bg-card);
-            transform: translateY(-2px);
         }
 
         .genre-header.active {
@@ -959,15 +990,16 @@
             gap: 20px;
             padding: 24px;
             background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-top: none;
             border-bottom-left-radius: 14px;
             border-bottom-right-radius: 14px;
-            box-shadow: var(--shadow);
         }
 
         @media (max-width: 768px) {
             .albums-grid {
                 grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
+                gap: 18px 12px;
                 padding: 16px;
             }
 
@@ -978,7 +1010,7 @@
             }
 
             .main-category-title {
-                font-size: 1.2rem;
+                font-size: 1.15rem;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -1014,19 +1046,13 @@
 
         /* Album Cards */
         .album-card {
-            background: var(--bg-card);
-            border-radius: 14px;
-            overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
-            box-shadow: var(--shadow);
             position: relative;
+            transition: transform 0.15s ease;
         }
 
-        .album-card:hover {
-            transform: translateY(-6px);
-            box-shadow: var(--shadow-lg);
-            background: var(--bg-card-hover);
+        .album-card:active {
+            transform: scale(0.97);
         }
 
         .album-cover {
@@ -1034,17 +1060,34 @@
             aspect-ratio: 1;
             object-fit: cover;
             display: block;
+            border-radius: 10px;
+            background: var(--bg-card);
+            transition: filter 0.2s ease;
+        }
+
+        .album-card:hover .album-cover {
+            filter: brightness(1.12);
+        }
+
+        .album-cover-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: linear-gradient(135deg, var(--bg-card-hover), var(--bg-card));
         }
 
         .album-info {
-            padding: 16px;
+            padding: 8px 2px 0;
         }
 
         .album-title {
             font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            font-weight: 400;
-            margin-bottom: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 2px;
             line-height: 1.3;
             overflow: hidden;
             display: -webkit-box;
@@ -1234,7 +1277,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.4.9';
+        const APP_VERSION = '1.5.0';
 
         class AlbumLibraryApp {
             constructor() {
@@ -2391,6 +2434,7 @@ Abbey Road,The Beatles</code>
                 if (randomAlbums.length < 3) return '';
 
                 return `
+                    <div class="random-hero" style="--hero-bg: url('${randomAlbums[0].coverUrl}')">
                         <div class="random-albums-container">
                             ${randomAlbums.map(album => {
                                 // Build Tidal links same way as renderAlbumCard
@@ -2421,6 +2465,7 @@ Abbey Road,The Beatles</code>
                         <div class="random-reroll">
                             <button class="shuffle-btn" onclick="app.rerollRandomAlbums()" title="Andere Zufallsalben" aria-label="Andere Zufallsalben">🎲</button>
                         </div>
+                    </div>
                     `;
             }
 
@@ -2624,17 +2669,11 @@ Abbey Road,The Beatles</code>
             }
 
             renderAlbumCard(album, index) {
-                const colors = [
-                    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-                    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-                ];
-                
-                const coverStyle = album.coverUrl 
-                    ? `src="${album.coverUrl}"` 
-                    : `style="background: ${colors[index % colors.length]}"`;
+                const initials = (album.album || '?').split(/\s+/).filter(Boolean)
+                    .slice(0, 2).map(word => word[0]).join('').toUpperCase();
+                const cover = album.coverUrl
+                    ? `<img class="album-cover" src="${album.coverUrl}" alt="${this.escapeAttr(album.album || 'Unknown Album')}" loading="lazy">`
+                    : `<div class="album-cover album-cover-placeholder">${this.escapeHtml(initials)}</div>`;
 
                 // Use Tidal ID if available, otherwise fall back to search
                 let tidalDeepLink, tidalWebLink;
@@ -2650,7 +2689,7 @@ Abbey Road,The Beatles</code>
 
                 return `
                     <div class="album-card" onclick="app.openInTidal('${tidalDeepLink.replace(/'/g, "\\'")}', '${tidalWebLink.replace(/'/g, "\\'")}', ${!!album.tidalId}, '${album.tidalId || ''}')">
-                        <img class="album-cover" ${coverStyle} alt="${this.escapeHtml(album.album || 'Unknown Album')}" loading="lazy">
+                        ${cover}
                         <button class="album-edit-btn" data-artist="${this.escapeAttr(album.artist || '')}"
                                 onclick="event.stopPropagation(); app.showGenreDialog(this.dataset.artist)"
                                 title="Genre ändern" aria-label="Genre ändern">✎</button>
