@@ -7,9 +7,15 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.7.0 - GitHub Pages Edition
+        Record Shelf v1.8.0 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.8.0 (weniger Genres):
+        - Kleine Genres erscheinen in einem größeren Genre (Einstellung "Mindestgröße pro Genre", Standard 3)
+        - Ziel: ein Last.fm-Tag des Künstlers, das ein großes Genre ist; sonst Namensende; sonst "Weitere …"
+        - Nur Anzeige: das genaue Genre bleibt gespeichert und steht klein unter dem Album
+        - Von Hand gesetzte Genres werden nie zusammengefasst
+
         NEU in v1.7.0 (Regale):
         - Jedes Genre ist eine waagrecht wischbare Reihe von Covern; "Alle" zeigt sie als Raster
         - Kategorien als Karten mit farbigem Symbol, Genres als Kästen darin
@@ -640,6 +646,24 @@
             font-weight: 500;
         }
 
+        .settings-field {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-weight: 500;
+        }
+
+        .settings-select {
+            padding: 10px;
+            font-size: 1rem;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
         .settings-actions {
             display: flex;
             gap: 12px;
@@ -1060,6 +1084,7 @@
 
         .shelf-row .album-card {
             flex: 0 0 160px;
+            min-width: 0; /* long names must not widen the card */
             scroll-snap-align: start;
         }
 
@@ -1181,6 +1206,15 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .album-subgenre {
+            font-size: 0.75rem;
+            color: var(--accent);
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .album-edit-btn {
@@ -1354,7 +1388,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.7.0';
+        const APP_VERSION = '1.8.0';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1364,6 +1398,7 @@
                 this.albums = [];
                 this.artistTags = {}; // artist (lowercase) -> top Last.fm tags, for re-classifying without new requests
                 this.tagBlacklist = this.createTagBlacklist();
+                this.minGenreSize = 3; // genres with fewer albums are shown inside a bigger genre (1 = off)
                 this.genreOverrides = {}; // artist (lowercase) -> genre chosen by hand
                 this.categoryOverrides = {}; // normalized genre -> main category chosen by hand
                 this.genreMapping = this.createGenreMapping();
@@ -1704,6 +1739,9 @@
                                 if (request.result.categoryOrder) {
                                     this.categoryOrder = request.result.categoryOrder;
                                 }
+                                if (typeof request.result.minGenreSize === 'number') {
+                                    this.minGenreSize = request.result.minGenreSize;
+                                }
                                 this.genreOverrides = request.result.genreOverrides || {};
                                 this.artistTags = request.result.artistTags || {};
                                 this.categoryOverrides = this.normalizeCategoryOverrides(request.result.categoryOverrides);
@@ -1733,6 +1771,7 @@
                         id: 'albumLibrary',
                         albums: this.albums,
                         categoryOrder: this.categoryOrder,
+                        minGenreSize: this.minGenreSize,
                         genreOverrides: this.genreOverrides,
                         categoryOverrides: this.categoryOverrides,
                         artistTags: this.artistTags,
@@ -1901,6 +1940,17 @@ Abbey Road,The Beatles</code>
                         </div>
 
                         <div class="settings-section">
+                            <h2>Kleine Genres zusammenfassen</h2>
+                            <p>Genres mit weniger Alben erscheinen in einem größeren Genre. Das genaue Genre bleibt gespeichert und steht unter dem Album.</p>
+                            <label class="settings-field">
+                                Mindestgröße pro Genre
+                                <select id="minGenreSize" class="settings-select">
+                                    ${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === this.minGenreSize ? 'selected' : ''}>${n === 1 ? '1 (nichts zusammenfassen)' : `${n} Alben`}</option>`).join('')}
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="settings-section">
                             <h2>Kategorie-Reihenfolge</h2>
                             <p>Ziehe die Kategorien um sie neu anzuordnen</p>
                             
@@ -2014,6 +2064,7 @@ Abbey Road,The Beatles</code>
                 
                 // Update categoryOrder based on current DOM order
                 this.categoryOrder = Array.from(items).map(item => item.dataset.category);
+                this.minGenreSize = parseInt(document.getElementById('minGenreSize').value, 10) || 1;
 
                 // Save to IndexedDB
                 await this.saveToIndexedDB();
@@ -2183,7 +2234,8 @@ Abbey Road,The Beatles</code>
                     albums: this.albums,
                     genreOverrides: this.genreOverrides,
                     categoryOverrides: this.categoryOverrides,
-                    artistTags: this.artistTags
+                    artistTags: this.artistTags,
+                    minGenreSize: this.minGenreSize
                 };
 
                 const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -2320,44 +2372,87 @@ Abbey Road,The Beatles</code>
                 }
             }
 
-            renderAlbumsByGenre() {
-                // Group albums by genre
-                const albumsByGenre = {};
+            // Small genres are shown inside a bigger one of the same category
+            // (display only; the stored genre stays). Order: one of the artist's
+            // top 6 Last.fm tags that is a big genre in this collection, then the
+            // end of the genre name ("Free jazz" -> "Jazz"), else a rest shelf
+            // ("Weitere <Kategorie>", or just "<Kategorie>" if it is the only shelf).
+            // Genres chosen by hand (✎) are never moved.
+            assignShelves() {
+                const counts = new Map();
+                const storedName = new Map(); // normalized genre -> name as stored
                 this.albums.forEach(album => {
                     const genre = album.genre || 'Unknown';
-                    if (!albumsByGenre[genre]) {
-                        albumsByGenre[genre] = [];
+                    const key = this.normalizeGenre(genre);
+                    counts.set(key, (counts.get(key) || 0) + 1);
+                    if (!storedName.has(key)) storedName.set(key, genre);
+                });
+                const isBig = genre => (counts.get(this.normalizeGenre(genre)) || 0) >= this.minGenreSize;
+                const manual = new Set(Object.values(this.genreOverrides).map(g => this.normalizeGenre(g)));
+
+                const target = genre => {
+                    const name = storedName.get(this.normalizeGenre(genre));
+                    return { shelf: name, category: this.getMainCategory(name) };
+                };
+                const findBigger = (album, genre, category) => {
+                    const key = this.normalizeGenre(genre);
+                    const fromTags = (this.artistTags[this.artistKey(album.artist)] || [])
+                        .slice(0, 6)
+                        .filter(tag => !this.tagBlacklist.has(this.normalizeGenre(tag)))
+                        .map(tag => this.mapGenre(tag))
+                        .find(g => this.normalizeGenre(g) !== key && isBig(g) && target(g).category === category);
+                    if (fromTags) return target(fromTags);
+
+                    const words = key.split(' ');
+                    for (let i = 1; i < words.length; i++) {
+                        const g = this.mapGenre(words.slice(i).join(' '));
+                        if (isBig(g) && target(g).category === category) return target(g);
                     }
-                    albumsByGenre[genre].push(album);
+                    return { shelf: null, category }; // rest shelf, named below
+                };
+
+                const result = new Map();
+                const perArtist = new Map();
+                this.albums.forEach(album => {
+                    const genre = album.genre || 'Unknown';
+                    const key = this.normalizeGenre(genre);
+                    const cacheKey = `${this.artistKey(album.artist)}|${key}`;
+                    if (!perArtist.has(cacheKey)) {
+                        const category = this.getMainCategory(genre);
+                        const keep = this.minGenreSize <= 1 || isBig(genre) || manual.has(key) || key === 'unknown';
+                        perArtist.set(cacheKey, keep ? { shelf: genre, category } : findBigger(album, genre, category));
+                    }
+                    result.set(album, perArtist.get(cacheKey));
                 });
 
-                // Sort albums within each genre: first by artist, then by album
-                Object.keys(albumsByGenre).forEach(genre => {
-                    albumsByGenre[genre].sort((a, b) => {
-                        const artistA = (a.artist || '').toLowerCase();
-                        const artistB = (b.artist || '').toLowerCase();
-                        
-                        if (artistA < artistB) return -1;
-                        if (artistA > artistB) return 1;
-                        
-                        const albumA = (a.album || '').toLowerCase();
-                        const albumB = (b.album || '').toLowerCase();
-                        
-                        if (albumA < albumB) return -1;
-                        if (albumA > albumB) return 1;
-                        return 0;
+                // Name the rest shelves: "Weitere Rock & Alternative" next to other
+                // shelves, just "Metal" if the category has nothing else
+                const hasOwnShelves = new Set([...result.values()].filter(a => a.shelf).map(a => a.category));
+                result.forEach((assigned, album) => {
+                    if (assigned.shelf) return;
+                    const label = this.categoryLabel(assigned.category);
+                    result.set(album, {
+                        shelf: hasOwnShelves.has(assigned.category) ? `Weitere ${label}` : label,
+                        category: assigned.category
                     });
                 });
+                return result;
+            }
 
-                // Group genres by main category
+            renderAlbumsByGenre() {
+                // Albums -> shelves (small genres shown inside bigger ones, see assignShelves)
+                this.shelfAssignments = this.assignShelves();
                 const genresByCategory = {};
-                Object.keys(albumsByGenre).forEach(genre => {
-                    const mainCat = this.getMainCategory(genre);
-                    if (!genresByCategory[mainCat]) {
-                        genresByCategory[mainCat] = {};
-                    }
-                    genresByCategory[mainCat][genre] = albumsByGenre[genre];
+                this.albums.forEach(album => {
+                    const { shelf, category } = this.shelfAssignments.get(album);
+                    genresByCategory[category] = genresByCategory[category] || {};
+                    (genresByCategory[category][shelf] = genresByCategory[category][shelf] || []).push(album);
                 });
+
+                // Albums within a shelf: by artist, then by album
+                const compare = (a, b) => (a || '').localeCompare(b || '', 'de', { sensitivity: 'base' });
+                Object.values(genresByCategory).forEach(shelves => Object.values(shelves).forEach(albums =>
+                    albums.sort((a, b) => compare(a.artist, b.artist) || compare(a.album, b.album))));
 
                 // Sort main categories by user-defined order
                 const sortedCategories = Object.keys(genresByCategory).sort((a, b) => {
@@ -2370,7 +2465,8 @@ Abbey Road,The Beatles</code>
                 });
                 
                 const uniqueArtists = new Set(this.albums.map(album => album.artist)).size;
-                const totalGenres = Object.keys(albumsByGenre).length;
+                const totalGenres = Object.values(genresByCategory)
+                    .reduce((sum, shelves) => sum + Object.keys(shelves).length, 0);
 
                 let html = `
                     <div class="button-container">
@@ -2455,7 +2551,9 @@ Abbey Road,The Beatles</code>
                 const ui = this.loadUiState();
                 sortedCategories.forEach((mainCategory, catIndex) => {
                     const genres = genresByCategory[mainCategory];
-                    const sortedGenres = Object.keys(genres).sort();
+                    // "Weitere …" always last
+                    const isRest = name => name.startsWith('Weitere ');
+                    const sortedGenres = Object.keys(genres).sort((a, b) => (isRest(a) - isRest(b)) || compare(a, b));
                     const totalAlbums = sortedGenres.reduce((sum, genre) => sum + genres[genre].length, 0);
                     const categoryCollapsed = !ui.categories.includes(mainCategory);
                     const badgeColor = this.mainCategories[mainCategory]?.color || 'rgba(107, 207, 143, 0.4)';
@@ -2482,7 +2580,7 @@ Abbey Road,The Beatles</code>
 
                         // Shuffle button only if more than 3 albums
                         const shuffleBtn = albums.length > 3
-                            ? `<button class="genre-shuffle-btn" onclick="event.stopPropagation(); app.shuffleGenre('${this.escapeHtml(genre).replace(/'/g, "\\'")}')" title="Zufälliges Album abspielen">↻</button>`
+                            ? `<button class="genre-shuffle-btn" onclick="event.stopPropagation(); app.shuffleShelf(this)" title="Zufälliges Album abspielen">↻</button>`
                             : '';
                         const allBtn = albums.length > 3
                             ? `<button class="shelf-all-btn" onclick="event.stopPropagation(); app.toggleShelfGrid(this)">Alle</button>`
@@ -2498,7 +2596,7 @@ Abbey Road,The Beatles</code>
                                     <span class="collapse-icon">▼</span>
                                 </div>
                                 <div class="shelf-row">
-                                    ${albums.map((album, index) => this.renderAlbumCard(album, index)).join('')}
+                                    ${albums.map(album => this.renderAlbumCard(album, genre)).join('')}
                                 </div>
                             </div>
                         `;
@@ -2637,62 +2735,38 @@ Abbey Road,The Beatles</code>
                 section.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
 
-            shuffleCategory(mainCategory) {
-                // Same category mapping as renderAlbumsByGenre
-                const categoryAlbums = this.albums.filter(album =>
-                    this.getMainCategory(album.genre || 'Unknown') === mainCategory
-                );
-
-                if (categoryAlbums.length === 0) {
-                    alert('Keine Alben in dieser Kategorie gefunden.');
+            playRandomAlbum(albums, emptyMessage) {
+                if (albums.length === 0) {
+                    alert(emptyMessage);
                     return;
                 }
-
-                // Pick random album
-                const randomAlbum = categoryAlbums[Math.floor(Math.random() * categoryAlbums.length)];
-
-                // Build Tidal links
+                const album = albums[Math.floor(Math.random() * albums.length)];
                 let tidalDeepLink, tidalWebLink;
-                if (randomAlbum.tidalId) {
-                    tidalDeepLink = `tidal://play/album/${randomAlbum.tidalId}`;
-                    tidalWebLink = `https://listen.tidal.com/album/${randomAlbum.tidalId}`;
+                if (album.tidalId) {
+                    tidalDeepLink = `tidal://play/album/${album.tidalId}`;
+                    tidalWebLink = `https://listen.tidal.com/album/${album.tidalId}`;
                 } else {
-                    const searchQuery = encodeURIComponent(`${randomAlbum.artist} ${randomAlbum.album}`);
+                    const searchQuery = encodeURIComponent(`${album.artist} ${album.album}`);
                     tidalDeepLink = `tidal://search?q=${searchQuery}`;
                     tidalWebLink = `https://listen.tidal.com/search?q=${searchQuery}`;
                 }
-
-                // Open in Tidal
-                this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
+                this.openInTidal(tidalDeepLink, tidalWebLink, !!album.tidalId, album.tidalId || '');
             }
 
-            shuffleGenre(genreName) {
-                // Find all albums with this exact genre
-                const genreAlbums = this.albums.filter(album => {
-                    return album.genre && album.genre.toLowerCase() === genreName.toLowerCase();
+            // Same assignment as the view (shelfAssignments is set by renderAlbumsByGenre)
+            shuffleCategory(mainCategory) {
+                const albums = this.albums.filter(album => this.shelfAssignments.get(album)?.category === mainCategory);
+                this.playRandomAlbum(albums, 'Keine Alben in dieser Kategorie gefunden.');
+            }
+
+            shuffleShelf(button) {
+                const shelf = button.closest('.shelf').dataset.genre;
+                const category = button.closest('.main-category-section').dataset.category;
+                const albums = this.albums.filter(album => {
+                    const assigned = this.shelfAssignments.get(album);
+                    return assigned?.shelf === shelf && assigned?.category === category;
                 });
-
-                if (genreAlbums.length === 0) {
-                    alert('Keine Alben in diesem Genre gefunden.');
-                    return;
-                }
-
-                // Pick random album
-                const randomAlbum = genreAlbums[Math.floor(Math.random() * genreAlbums.length)];
-
-                // Build Tidal links
-                let tidalDeepLink, tidalWebLink;
-                if (randomAlbum.tidalId) {
-                    tidalDeepLink = `tidal://play/album/${randomAlbum.tidalId}`;
-                    tidalWebLink = `https://listen.tidal.com/album/${randomAlbum.tidalId}`;
-                } else {
-                    const searchQuery = encodeURIComponent(`${randomAlbum.artist} ${randomAlbum.album}`);
-                    tidalDeepLink = `tidal://search?q=${searchQuery}`;
-                    tidalWebLink = `https://listen.tidal.com/search?q=${searchQuery}`;
-                }
-
-                // Open in Tidal
-                this.openInTidal(tidalDeepLink, tidalWebLink, !!randomAlbum.tidalId, randomAlbum.tidalId || '');
+                this.playRandomAlbum(albums, 'Keine Alben in diesem Genre gefunden.');
             }
 
             loadNewCSV() {
@@ -2740,6 +2814,7 @@ Abbey Road,The Beatles</code>
                         if (backup.genreOverrides) this.genreOverrides = backup.genreOverrides;
                         if (backup.categoryOverrides) this.categoryOverrides = this.normalizeCategoryOverrides(backup.categoryOverrides);
                         if (backup.artistTags) this.artistTags = backup.artistTags;
+                        if (typeof backup.minGenreSize === 'number') this.minGenreSize = backup.minGenreSize;
                         this.reclassifyAlbums(this.albums);
                         this.applyGenreOverrides(this.albums);
                         
@@ -2826,7 +2901,7 @@ Abbey Road,The Beatles</code>
                 }
             }
 
-            renderAlbumCard(album, index) {
+            renderAlbumCard(album, shelf) {
                 const initials = (album.album || '?').split(/\s+/).filter(Boolean)
                     .slice(0, 2).map(word => word[0]).join('').toUpperCase();
                 const cover = album.coverUrl
@@ -2854,6 +2929,8 @@ Abbey Road,The Beatles</code>
                         <div class="album-info">
                             <div class="album-title">${this.escapeHtml(album.album || 'Unknown Album')}</div>
                             <div class="album-artist">${this.escapeHtml(album.artist || 'Unknown Artist')}</div>
+                            ${shelf && album.genre && album.genre !== shelf
+                                ? `<div class="album-subgenre">${this.escapeHtml(album.genre)}</div>` : ''}
                         </div>
                     </div>
                 `;
