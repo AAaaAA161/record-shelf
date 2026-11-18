@@ -7,9 +7,14 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.8.1 - GitHub Pages Edition
+        Record Shelf v1.8.2 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.8.2:
+        - Kabarett/Cabaret → Pop, Neocrust → Rock & Alternative, Meditative/New age → Electronic & Synth
+        - Länder und Jahreszahlen gelten nicht mehr als Genre (z. B. "Austrian" → Unknown)
+        - Fix: Genres mit eigener Kategorie-Wahl zählten in der Meldung als "ohne Kategorie"
+
         NEU in v1.8.1 (weniger Other/Unknown):
         - Last.fm-Autokorrektur für Künstler- und Albumnamen
         - Mehrere Künstler im Feld ("A, B", "A feat. B"): erster Künstler wird zusätzlich versucht
@@ -1394,7 +1399,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.8.1';
+        const APP_VERSION = '1.8.2';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1493,7 +1498,7 @@
                                 'britpop', 'noise pop', 'garage rock', 'psychedelic rock', 'neo psychedelia',
                                 'krautrock', 'math rock', 'stoner rock', 'hard rock', 'classic rock', 'art rock',
                                 'progressive rock', 'glam rock', 'pop punk', 'ska punk', 'gothic rock',
-                                'gothic', 'deathrock', 'deutschrock'],
+                                'gothic', 'deathrock', 'deutschrock', 'neocrust', 'crust punk', 'crust'],
                         color: 'rgba(212, 132, 95, 0.5)',
                         order: 2
                     },
@@ -1512,7 +1517,7 @@
                                 'uk garage', 'future garage', 'chillout', 'dance', 'disco', 'italo disco',
                                 'indietronica', 'deconstructed club', 'footwork', 'leftfield', 'big beat',
                                 'acid house', 'deep house', 'tech house', 'minimal techno', 'ebm', 'lounge',
-                                'downbeat', 'nu jazz', 'electronic pop'],
+                                'downbeat', 'nu jazz', 'electronic pop', 'meditative', 'new age'],
                         color: 'rgba(120, 150, 180, 0.5)',
                         order: 4
                     },
@@ -1521,7 +1526,7 @@
                                 'pop rock', 'power pop', 'chamber pop', 'baroque pop', 'singer songwriter',
                                 'liedermacher', 'chanson', 'schlager', 'neue deutsche welle', 'k pop', 'j pop',
                                 'city pop', 'hyperpop', 'deutschpop', 'french pop', 'easy listening',
-                                'cantautore', 'canzone'],
+                                'cantautore', 'canzone', 'kabarett', 'cabaret', 'austrian kabarett'],
                         color: 'rgba(198, 120, 141, 0.5)',
                         order: 5
                     },
@@ -2975,7 +2980,7 @@ Abbey Road,The Beatles</code>
                     // Vague descriptors
                     'melancholic', 'melancholy', 'chill', 'atmospheric', 'cello',
                     'dischord', 'guitar', 'instrumental', 'outsider', 'touhou', 'political',
-                    'underrated', 'albums i own', 'my favorite', 'check out', 'cover', 'covers', 'live', 'remix'
+                    'underrated', 'albums i own', 'my favorite', 'check out', 'must check', 'cover', 'covers', 'live', 'remix'
                 ].map(tag => this.normalizeGenre(tag)));
             }
 
@@ -2984,8 +2989,9 @@ Abbey Road,The Beatles</code>
                 return !this.tagBlacklist.has(key) && !/^\d{2,4}s?$/.test(key); // no years or decades
             }
 
+            // Your own category choices (✎) count: a genre you assigned is not "Other"
             isOther(genre) {
-                return !genre || this.getMainCategory(genre, false) === '🎵 Other';
+                return !genre || this.getMainCategory(genre) === '🎵 Other';
             }
 
             // Pick a genre from top tags (in Last.fm order): the first tag that maps
@@ -2994,10 +3000,10 @@ Abbey Road,The Beatles</code>
                 const candidates = (tags || []).filter(tag => this.isGenreTag(tag));
                 for (const tag of candidates) {
                     const genre = this.mapGenre(tag);
-                    if (this.getMainCategory(genre, false) !== '🎵 Other') return genre;
+                    if (!this.isOther(genre)) return genre;
                 }
                 if (candidates.length > 0) return this.mapGenre(candidates[0]);
-                return tags && tags.length > 0 ? this.mapGenre(tags[0]) : 'Unknown';
+                return 'Unknown'; // only non-genre tags such as countries or years
             }
 
             // Genre from stored tags: the artist's first, the album's own tags if
@@ -3018,7 +3024,7 @@ Abbey Road,The Beatles</code>
                     if (genre) {
                         album.genre = genre;
                     } else if (album.genre) {
-                        album.genre = this.mapGenre(album.genre);
+                        album.genre = this.isGenreTag(album.genre) ? this.mapGenre(album.genre) : 'Unknown';
                     }
                 });
             }
