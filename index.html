@@ -7,9 +7,13 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.8.2 - GitHub Pages Edition
+        Record Shelf v1.8.3 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.8.3:
+        - Genre-Korrekturen auch pro Album (z. B. für Sampler von "Various Artists")
+        - "Backup laden" übernimmt auch eine Datei nur mit Korrekturen, ohne die Alben anzufassen
+
         NEU in v1.8.2:
         - Kabarett/Cabaret → Pop, Neocrust → Rock & Alternative, Meditative/New age → Electronic & Synth
         - Länder und Jahreszahlen gelten nicht mehr als Genre (z. B. "Austrian" → Unknown)
@@ -1399,7 +1403,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.8.2';
+        const APP_VERSION = '1.8.3';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1411,6 +1415,7 @@
                 this.tagBlacklist = this.createTagBlacklist();
                 this.minGenreSize = 3; // genres with fewer albums are shown inside a bigger genre (1 = off)
                 this.genreOverrides = {}; // artist (lowercase) -> genre chosen by hand
+                this.albumGenreOverrides = {}; // "artist|album" (lowercase) -> genre for one album (e.g. samplers)
                 this.categoryOverrides = {}; // normalized genre -> main category chosen by hand
                 this.genreMapping = this.createGenreMapping();
                 this.mainCategories = this.createMainCategories();
@@ -1688,11 +1693,21 @@
                 return (artist || '').toLowerCase().trim();
             }
 
+            albumKey(album) {
+                return `${this.artistKey(album.artist)}|${(album.album || '').toLowerCase().trim()}`;
+            }
+
+            // Genres chosen by hand: per artist, then per album (album wins)
             applyGenreOverrides(albums) {
                 albums.forEach(album => {
-                    const genre = this.genreOverrides[this.artistKey(album.artist)];
+                    const genre = this.albumGenreOverrides[this.albumKey(album)]
+                        || this.genreOverrides[this.artistKey(album.artist)];
                     if (genre) album.genre = genre;
                 });
+            }
+
+            hasGenreOverride(album) {
+                return !!(this.albumGenreOverrides[this.albumKey(album)] || this.genreOverrides[this.artistKey(album.artist)]);
             }
 
             async init() {
@@ -1760,6 +1775,7 @@
                                     this.minGenreSize = request.result.minGenreSize;
                                 }
                                 this.genreOverrides = request.result.genreOverrides || {};
+                                this.albumGenreOverrides = request.result.albumGenreOverrides || {};
                                 this.artistTags = request.result.artistTags || {};
                                 this.categoryOverrides = this.normalizeCategoryOverrides(request.result.categoryOverrides);
                                 resolve(request.result.albums || null);
@@ -1790,6 +1806,7 @@
                         categoryOrder: this.categoryOrder,
                         minGenreSize: this.minGenreSize,
                         genreOverrides: this.genreOverrides,
+                        albumGenreOverrides: this.albumGenreOverrides,
                         categoryOverrides: this.categoryOverrides,
                         artistTags: this.artistTags,
                         savedAt: new Date().toISOString()
@@ -2254,6 +2271,7 @@ Abbey Road,The Beatles</code>
                     albumCount: this.albums.length,
                     albums: this.albums,
                     genreOverrides: this.genreOverrides,
+                    albumGenreOverrides: this.albumGenreOverrides,
                     categoryOverrides: this.categoryOverrides,
                     artistTags: this.artistTags,
                     minGenreSize: this.minGenreSize
@@ -2409,11 +2427,13 @@ Abbey Road,The Beatles</code>
                     if (!storedName.has(key)) storedName.set(key, genre);
                 });
                 const isBig = genre => (counts.get(this.normalizeGenre(genre)) || 0) >= this.minGenreSize;
-                const manual = new Set(Object.values(this.genreOverrides).map(g => this.normalizeGenre(g)));
+                const manual = new Set([...Object.values(this.genreOverrides), ...Object.values(this.albumGenreOverrides)]
+                    .map(g => this.normalizeGenre(g)));
 
+                // Shelf names use one spelling per genre ("R&b" and "R&B" share a shelf)
                 const target = genre => {
                     const name = storedName.get(this.normalizeGenre(genre));
-                    return { shelf: name, category: this.getMainCategory(name) };
+                    return { shelf: this.displayGenre(name), category: this.getMainCategory(name) };
                 };
                 const findBigger = (album, genre, category) => {
                     const key = this.normalizeGenre(genre);
@@ -2441,7 +2461,7 @@ Abbey Road,The Beatles</code>
                     if (!perArtist.has(cacheKey)) {
                         const category = this.getMainCategory(genre);
                         const keep = this.minGenreSize <= 1 || isBig(genre) || manual.has(key) || key === 'unknown';
-                        perArtist.set(cacheKey, keep ? { shelf: genre, category } : findBigger(album, genre, category));
+                        perArtist.set(cacheKey, keep ? { shelf: this.displayGenre(genre), category } : findBigger(album, genre, category));
                     }
                     result.set(album, perArtist.get(cacheKey));
                 });
@@ -2814,6 +2834,13 @@ Abbey Road,The Beatles</code>
                     try {
                         const backup = JSON.parse(e.target.result);
                         
+                        // A file with only corrections (no albums) is merged into the current data
+                        if (!backup.albums && (backup.genreOverrides || backup.albumGenreOverrides || backup.categoryOverrides)) {
+                            await this.importCorrections(backup);
+                            event.target.value = '';
+                            return;
+                        }
+
                         // Validate backup structure
                         if (!backup.albums || !Array.isArray(backup.albums)) {
                             throw new Error('Ungültiges Backup-Format');
@@ -2833,6 +2860,7 @@ Abbey Road,The Beatles</code>
                         this.albums = backup.albums;
                         // Backups before v1.4.7 have no overrides: keep the current ones
                         if (backup.genreOverrides) this.genreOverrides = backup.genreOverrides;
+                        if (backup.albumGenreOverrides) this.albumGenreOverrides = backup.albumGenreOverrides;
                         if (backup.categoryOverrides) this.categoryOverrides = this.normalizeCategoryOverrides(backup.categoryOverrides);
                         if (backup.artistTags) this.artistTags = backup.artistTags;
                         if (typeof backup.minGenreSize === 'number') this.minGenreSize = backup.minGenreSize;
@@ -2857,6 +2885,26 @@ Abbey Road,The Beatles</code>
                 };
                 
                 reader.readAsText(file);
+            }
+
+            async importCorrections(file) {
+                const genres = { ...(file.genreOverrides || {}) };
+                const albumGenres = { ...(file.albumGenreOverrides || {}) };
+                const categories = this.normalizeCategoryOverrides(file.categoryOverrides);
+                const count = Object.keys(genres).length + Object.keys(albumGenres).length + Object.keys(categories).length;
+                const matching = this.albums.filter(album =>
+                    albumGenres[this.albumKey(album)] || genres[this.artistKey(album.artist)]).length;
+                if (!confirm(`${count} Genre-Korrekturen übernehmen?\n` +
+                             `Betrifft ${matching} Alben deiner Sammlung. Deine Alben selbst bleiben unverändert.`)) {
+                    return;
+                }
+                Object.assign(this.genreOverrides, genres);
+                Object.assign(this.albumGenreOverrides, albumGenres);
+                Object.assign(this.categoryOverrides, categories);
+                this.applyGenreOverrides(this.albums);
+                await this.saveToIndexedDB();
+                this.renderAlbumsByGenre();
+                this.showToast(`✅ ${count} Korrekturen übernommen (${matching} Alben)`);
             }
 
             openInTidal(deepLink, webLink, hasTidalId, tidalId) {
@@ -2950,7 +2998,7 @@ Abbey Road,The Beatles</code>
                         <div class="album-info">
                             <div class="album-title">${this.escapeHtml(album.album || 'Unknown Album')}</div>
                             <div class="album-artist">${this.escapeHtml(album.artist || 'Unknown Artist')}</div>
-                            ${shelf && album.genre && album.genre !== shelf
+                            ${shelf && album.genre && this.normalizeGenre(album.genre) !== this.normalizeGenre(shelf)
                                 ? `<div class="album-subgenre">${this.escapeHtml(album.genre)}</div>` : ''}
                         </div>
                     </div>
@@ -3059,7 +3107,7 @@ Abbey Road,The Beatles</code>
             // genres set by hand are left alone.
             async resolveWithAlbumTags(albums, force = false) {
                 const todo = albums.filter(album => this.isOther(album.genre)
-                    && !this.genreOverrides[this.artistKey(album.artist)]
+                    && !this.hasGenreOverride(album)
                     && (force || !album.albumTags));
                 for (let i = 0; i < todo.length; i += 2) {
                     await Promise.all(todo.slice(i, i + 2).map(async album => {
@@ -3188,7 +3236,7 @@ Abbey Road,The Beatles</code>
                 const key = this.artistKey(artist);
                 const artistAlbums = this.albums.filter(a => this.artistKey(a.artist) === key);
                 const current = artistAlbums[0]?.genre || 'Unknown';
-                const hasOverride = !!this.genreOverrides[key];
+                const hasOverride = artistAlbums.some(album => this.hasGenreOverride(album));
                 const genres = [...new Set(this.albums.map(a => a.genre).filter(Boolean))]
                     .sort((a, b) => a.localeCompare(b, 'de'));
 
@@ -3267,6 +3315,10 @@ Abbey Road,The Beatles</code>
             async setGenreOverride(artist, genre, category) {
                 const key = this.artistKey(artist);
                 const currentGenre = this.albums.find(a => this.artistKey(a.artist) === key)?.genre;
+                // A choice for the artist replaces album-level choices of this artist
+                Object.keys(this.albumGenreOverrides)
+                    .filter(albumKey => albumKey.startsWith(`${key}|`))
+                    .forEach(albumKey => delete this.albumGenreOverrides[albumKey]);
                 if (genre) {
                     // Only pin the artist's genre if it actually changes
                     if (genre !== currentGenre) this.genreOverrides[key] = genre;
