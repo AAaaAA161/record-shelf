@@ -7,9 +7,15 @@
     <meta name="theme-color" content="#d4845f">
     <title>Record Shelf</title>
     <!-- 
-        Record Shelf v1.8.0 - GitHub Pages Edition
+        Record Shelf v1.8.1 - GitHub Pages Edition
         Features: IndexedDB storage, Storage Persistence API, Options page, Export/Import backups, cards layout, dropdown menu
         
+        NEU in v1.8.1 (weniger Other/Unknown):
+        - Last.fm-Autokorrektur für Künstler- und Albumnamen
+        - Mehrere Künstler im Feld ("A, B", "A feat. B"): erster Künstler wird zusätzlich versucht
+        - Ohne Kategorie: die Tags des Albums selbst werden abgefragt
+        - Alle Top-10-Tags werden geprüft, Jahreszahlen übersprungen; mehr Genres zugeordnet
+
         NEU in v1.8.0 (weniger Genres):
         - Kleine Genres erscheinen in einem größeren Genre (Einstellung "Mindestgröße pro Genre", Standard 3)
         - Ziel: ein Last.fm-Tag des Künstlers, das ein großes Genre ist; sonst Namensende; sonst "Weitere …"
@@ -1388,7 +1394,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script>
-        const APP_VERSION = '1.8.0';
+        const APP_VERSION = '1.8.1';
 
         class AlbumLibraryApp {
             constructor() {
@@ -1440,7 +1446,10 @@
                     'avantgarde': 'avant garde', 'neoclassical': 'neo classical', 'neosoul': 'neo soul',
                     'lofi': 'lo fi', 'kpop': 'k pop', 'jpop': 'j pop',
                     'darkwave': 'dark wave', 'coldwave': 'cold wave', 'newwave': 'new wave',
-                    'ndw': 'neue deutsche welle', 'world music': 'world'
+                    'ndw': 'neue deutsche welle', 'world music': 'world',
+                    'chill out': 'chillout', 'electronic music': 'electronic', 'elektronische musik': 'electronic',
+                    'deutscher pop': 'deutschpop', 'german pop': 'deutschpop', 'deutscher rock': 'deutschrock',
+                    'original soundtrack': 'soundtrack', 'ost': 'soundtrack', 'film score': 'score'
                 };
                 return variants[g] || g;
             }
@@ -1484,7 +1493,7 @@
                                 'britpop', 'noise pop', 'garage rock', 'psychedelic rock', 'neo psychedelia',
                                 'krautrock', 'math rock', 'stoner rock', 'hard rock', 'classic rock', 'art rock',
                                 'progressive rock', 'glam rock', 'pop punk', 'ska punk', 'gothic rock',
-                                'gothic', 'deathrock'],
+                                'gothic', 'deathrock', 'deutschrock'],
                         color: 'rgba(212, 132, 95, 0.5)',
                         order: 2
                     },
@@ -1502,7 +1511,8 @@
                                 'minimal', 'electroclash', 'dark wave', 'cold wave', 'breakcore', 'nightcore',
                                 'uk garage', 'future garage', 'chillout', 'dance', 'disco', 'italo disco',
                                 'indietronica', 'deconstructed club', 'footwork', 'leftfield', 'big beat',
-                                'acid house', 'deep house', 'tech house', 'minimal techno', 'ebm'],
+                                'acid house', 'deep house', 'tech house', 'minimal techno', 'ebm', 'lounge',
+                                'downbeat', 'nu jazz', 'electronic pop'],
                         color: 'rgba(120, 150, 180, 0.5)',
                         order: 4
                     },
@@ -1510,7 +1520,8 @@
                         genres: ['pop', 'indie pop', 'dream pop', 'art pop', 'electro pop', 'dance pop',
                                 'pop rock', 'power pop', 'chamber pop', 'baroque pop', 'singer songwriter',
                                 'liedermacher', 'chanson', 'schlager', 'neue deutsche welle', 'k pop', 'j pop',
-                                'city pop', 'hyperpop'],
+                                'city pop', 'hyperpop', 'deutschpop', 'french pop', 'easy listening',
+                                'cantautore', 'canzone'],
                         color: 'rgba(198, 120, 141, 0.5)',
                         order: 5
                     },
@@ -1527,7 +1538,8 @@
                         genres: ['jazz', 'blues', 'folk', 'indie folk', 'freak folk', 'neofolk', 'country',
                                 'alt country', 'outlaw country', 'americana', 'bluegrass', 'gospel',
                                 'classical', 'modern classical', 'contemporary classical', 'neo classical',
-                                'minimalism', 'opera', 'baroque', 'soundtrack', 'reggae', 'roots reggae',
+                                'minimalism', 'opera', 'baroque', 'soundtrack', 'score', 'video game music',
+                                'reggae', 'roots reggae',
                                 'dub', 'ska', 'dancehall', 'funk', 'acoustic', 'piano', 'trumpet',
                                 'bebop', 'free jazz', 'hard bop', 'cool jazz', 'modal jazz', 'spiritual jazz',
                                 'avant garde jazz', 'jazz fusion', 'fusion', 'swing', 'big band', 'delta blues'],
@@ -2174,6 +2186,7 @@ Abbey Road,The Beatles</code>
                     if (old) {
                         if (old.genre && old.genre !== 'Unknown') album.genre = old.genre;
                         if (old.coverUrl) album.coverUrl = old.coverUrl;
+                        if (old.albumTags) album.albumTags = old.albumTags;
                     }
                 });
                 this.applyGenreOverrides(imported);
@@ -2210,6 +2223,9 @@ Abbey Road,The Beatles</code>
                             await this.sleep(delayBetweenBatches);
                         }
                     }
+
+                    // Albums still without category: try the album's own Last.fm tags
+                    await this.resolveWithAlbumTags(imported);
 
                     // Replace the library only after everything is loaded
                     this.albums = imported;
@@ -2353,7 +2369,7 @@ Abbey Road,The Beatles</code>
 
             async fetchAlbumCover(albumName, artistName) {
                 try {
-                    const data = await this.lastfmRequest({ method: 'album.getinfo', artist: artistName, album: albumName });
+                    const data = await this.lastfmRequest({ method: 'album.getinfo', artist: artistName, album: albumName, autocorrect: 1 });
 
                     if (data.album && data.album.image) {
                         const images = data.album.image;
@@ -2958,16 +2974,25 @@ Abbey Road,The Beatles</code>
                     'female vocalist', 'male vocalist',
                     // Vague descriptors
                     'melancholic', 'melancholy', 'chill', 'atmospheric', 'cello',
-                    'dischord', 'guitar', 'instrumental', 'outsider', 'touhou', 'political'
+                    'dischord', 'guitar', 'instrumental', 'outsider', 'touhou', 'political',
+                    'underrated', 'albums i own', 'my favorite', 'check out', 'cover', 'covers', 'live', 'remix'
                 ].map(tag => this.normalizeGenre(tag)));
             }
 
-            // Pick a genre from an artist's top tags: the first of the top 6 tags
-            // that maps to one of the 8 categories; otherwise the first tag that
-            // is not blacklisted.
+            isGenreTag(tag) {
+                const key = this.normalizeGenre(tag);
+                return !this.tagBlacklist.has(key) && !/^\d{2,4}s?$/.test(key); // no years or decades
+            }
+
+            isOther(genre) {
+                return !genre || this.getMainCategory(genre, false) === '🎵 Other';
+            }
+
+            // Pick a genre from top tags (in Last.fm order): the first tag that maps
+            // to one of the 8 categories; otherwise the first tag that is a genre.
             classifyTags(tags) {
-                const candidates = (tags || []).filter(tag => !this.tagBlacklist.has(this.normalizeGenre(tag)));
-                for (const tag of candidates.slice(0, 6)) {
+                const candidates = (tags || []).filter(tag => this.isGenreTag(tag));
+                for (const tag of candidates) {
                     const genre = this.mapGenre(tag);
                     if (this.getMainCategory(genre, false) !== '🎵 Other') return genre;
                 }
@@ -2975,16 +3000,69 @@ Abbey Road,The Beatles</code>
                 return tags && tags.length > 0 ? this.mapGenre(tags[0]) : 'Unknown';
             }
 
+            // Genre from stored tags: the artist's first, the album's own tags if
+            // the artist gives no category. null if there are no tags at all.
+            genreFromStoredTags(album) {
+                const artistTags = this.artistTags[this.artistKey(album.artist)];
+                const fromArtist = artistTags?.length ? this.classifyTags(artistTags) : null;
+                if (fromArtist && !this.isOther(fromArtist)) return fromArtist;
+                const fromAlbum = album.albumTags?.length ? this.classifyTags(album.albumTags) : null;
+                if (fromAlbum && !this.isOther(fromAlbum)) return fromAlbum;
+                return fromArtist || fromAlbum;
+            }
+
             // Genre from stored tags if available, otherwise re-map the stored genre
             reclassifyAlbums(albums) {
                 albums.forEach(album => {
-                    const tags = this.artistTags[this.artistKey(album.artist)];
-                    if (tags && tags.length > 0) {
-                        album.genre = this.classifyTags(tags);
+                    const genre = this.genreFromStoredTags(album);
+                    if (genre) {
+                        album.genre = genre;
                     } else if (album.genre) {
                         album.genre = this.mapGenre(album.genre);
                     }
                 });
+            }
+
+            // Names to try at Last.fm: as written, then the first of several
+            // artists ("A, B", "A & B", "A feat. B", "A x B", "A vs. B")
+            artistNameVariants(artist) {
+                const name = (artist || '').trim();
+                const first = name.split(/\s*(?:,|;|\/|&|\+|\bfeat\.?|\bft\.|\bfeaturing\b|\bwith\b|\bx\b|\bvs\.?)\s*/i)[0].trim();
+                return [...new Set([name, first].filter(Boolean))];
+            }
+
+            async fetchTopTags(params) {
+                const data = await this.lastfmRequest({ ...params, autocorrect: 1 });
+                return (data.toptags?.tag || []).slice(0, 10).map(tag => tag.name.toLowerCase().trim());
+            }
+
+            async fetchAlbumTags(album) {
+                try {
+                    for (const artist of this.artistNameVariants(album.artist)) {
+                        const tags = await this.fetchTopTags({ method: 'album.gettoptags', artist, album: album.album });
+                        if (tags.length > 0) return tags;
+                    }
+                } catch (error) {
+                    console.error('Error fetching album tags:', error);
+                }
+                return [];
+            }
+
+            // Albums without category (Other/Unknown): ask Last.fm for the album's
+            // own tags. Albums already checked are skipped unless force is set;
+            // genres set by hand are left alone.
+            async resolveWithAlbumTags(albums, force = false) {
+                const todo = albums.filter(album => this.isOther(album.genre)
+                    && !this.genreOverrides[this.artistKey(album.artist)]
+                    && (force || !album.albumTags));
+                for (let i = 0; i < todo.length; i += 2) {
+                    await Promise.all(todo.slice(i, i + 2).map(async album => {
+                        album.albumTags = await this.fetchAlbumTags(album);
+                        album.genre = this.genreFromStoredTags(album) || album.genre;
+                    }));
+                    this.showLoading('Prüfe Alben ohne Genre...', Math.min(i + 2, todo.length), todo.length);
+                    if (i + 2 < todo.length) await this.sleep(500);
+                }
             }
 
             async fetchGenreFromLastFM(artist, forceRequest = false) {
@@ -2994,9 +3072,16 @@ Abbey Road,The Beatles</code>
                 }
 
                 try {
-                    const data = await this.lastfmRequest({ method: 'artist.gettoptags', artist });
-                    const tags = (data.toptags?.tag || []).slice(0, 10)
-                        .map(tag => tag.name.toLowerCase().trim());
+                    // First name variant whose tags give a category; else the first with tags
+                    let tags = [];
+                    for (const name of this.artistNameVariants(artist)) {
+                        const found = await this.fetchTopTags({ method: 'artist.gettoptags', artist: name });
+                        if (tags.length === 0) tags = found;
+                        if (found.length > 0 && !this.isOther(this.classifyTags(found))) {
+                            tags = found;
+                            break;
+                        }
+                    }
                     if (tags.length === 0) return null; // unknown at Last.fm: caller keeps the old genre
                     this.artistTags[key] = tags;
                     const genre = this.classifyTags(tags);
@@ -3021,13 +3106,11 @@ Abbey Road,The Beatles</code>
                 this.downloadBackup();
 
                 let processed = 0;
-                let failed = 0;
                 const newGenres = new Map();
                 for (let i = 0; i < artists.length; i += 2) {
                     await Promise.all(artists.slice(i, i + 2).map(async artist => {
                         const genre = await this.fetchGenreFromLastFM(artist, true);
                         if (genre) newGenres.set(this.artistKey(artist), genre);
-                        else failed++;
                         processed++;
                         this.showLoading('Bestimme Genres neu...', processed, artists.length);
                     }));
@@ -3035,14 +3118,19 @@ Abbey Road,The Beatles</code>
                 }
 
                 this.albums.forEach(album => {
-                    const genre = newGenres.get(this.artistKey(album.artist));
-                    if (genre) album.genre = genre;
+                    if (!newGenres.has(this.artistKey(album.artist))) return; // not found: keep the old genre
+                    album.genre = this.genreFromStoredTags(album) || album.genre;
                 });
+
+                // Albums still without category: try the album's own tags
+                await this.resolveWithAlbumTags(this.albums, true);
+
                 this.applyGenreOverrides(this.albums);
                 await this.saveToIndexedDB();
                 this.renderAlbumsByGenre();
-                this.showToast(failed
-                    ? `⚠️ Genres neu bestimmt; ${failed} Künstler nicht gefunden, dort bleibt das alte Genre`
+                const withoutCategory = this.albums.filter(album => this.isOther(album.genre)).length;
+                this.showToast(withoutCategory
+                    ? `⚠️ Genres neu bestimmt; ${withoutCategory} Alben noch ohne Kategorie (mit ✎ zuordnen)`
                     : '✅ Genres neu bestimmt');
             }
 
